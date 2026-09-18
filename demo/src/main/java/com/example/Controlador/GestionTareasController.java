@@ -310,9 +310,16 @@ public class GestionTareasController {
         if (input != null && !input.isEmpty()) {
             try {
                 int id = Integer.parseInt(input);
-                if (listaGeneral.delete(id)) { resueltasLista++; vista.logGUI("[DELETE] Eliminada ID: " + id); }
+                if (listaGeneral.delete(id)) {
+                    resueltasLista++;
+                    vista.logGUI("[DELETE] Eliminada ID: " + id);
+                } else {
+                    JOptionPane.showMessageDialog(vista, "No existe ninguna tarea con ID: " + id + " en la Lista General.", "Atención", JOptionPane.WARNING_MESSAGE);
+                }
                 actualizarTablasYMetricas();
-            } catch (Exception ignored) {}
+            } catch (NumberFormatException e) {
+                JOptionPane.showMessageDialog(vista, "Ingrese un ID numérico válido.", "Atención", JOptionPane.WARNING_MESSAGE);
+            }
         }
     }
 

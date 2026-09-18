@@ -445,7 +445,7 @@ public class GestionTareasView extends JFrame {
 
         // Subpanel 1: HashMap
         JPanel p1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10)); p1.setBackground(COLOR_TARJETA);
-        p1.setBorder(crearBordeSeccion(" Buscar Tarea por ID ", 12));
+        p1.setBorder(crearBordeSeccion(" Buscar Tarea por ID (Todas las Tareas Registradas) ", 12));
         txtBuscarHashId = new JTextField(10); estilarCampoTexto(txtBuscarHashId);
         btnBuscarHash = crearBotonEstilizado("Buscar Tarea por ID", COLOR_PRIMARIO, Color.WHITE);
         p1.add(new JLabel("ID Tarea:")); p1.add(txtBuscarHashId); p1.add(btnBuscarHash);
@@ -458,7 +458,7 @@ public class GestionTareasView extends JFrame {
 
         // Subpanel 3: Búsqueda Binaria
         JPanel p3 = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10)); p3.setBackground(COLOR_TARJETA);
-        p3.setBorder(crearBordeSeccion(" Buscar Tarea por ID (Consolidado) ", 12));
+        p3.setBorder(crearBordeSeccion(" Buscar Tarea por ID (Solo Tareas Activas: Pila, Cola y Lista) ", 12));
         txtBuscarBinariaId = new JTextField(10); estilarCampoTexto(txtBuscarBinariaId);
         btnBuscarBinaria = crearBotonEstilizado("Buscar Tarea por ID", COLOR_VERDE, Color.WHITE);
         p3.add(new JLabel("ID Tarea:")); p3.add(txtBuscarBinariaId); p3.add(btnBuscarBinaria);
