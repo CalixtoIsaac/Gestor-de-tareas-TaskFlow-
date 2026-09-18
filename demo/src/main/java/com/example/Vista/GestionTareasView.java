@@ -125,10 +125,10 @@ public class GestionTareasView extends JFrame {
         btnNavPila = crearBotonNav("Pilas (Urgentes)", "PILA");
         btnNavCola = crearBotonNav("Colas (Programadas)", "COLA");
         btnNavLista = crearBotonNav("Listas (Generales)", "LISTA");
-        btnNavPrioridad = crearBotonNav("Cola Prioridad (Heap)", "PRIORIDAD");
-        btnNavEmpleados = crearBotonNav("Empleados (Árbol BST)", "EMPLEADOS");
-        btnNavRecursivo = crearBotonNav("Recursión & Div/Venc", "RECURSIVO");
-        btnNavAlgoritmos = crearBotonNav("Hash & Búsquedas", "ALGORITMOS");
+        btnNavPrioridad = crearBotonNav("Cola Prioridad", "PRIORIDAD");
+        btnNavEmpleados = crearBotonNav("Empleados", "EMPLEADOS");
+        btnNavRecursivo = crearBotonNav("Cálculos y Distribución", "RECURSIVO");
+        btnNavAlgoritmos = crearBotonNav("Búsquedas", "ALGORITMOS");
         btnNavGrafo = crearBotonNav("Grafo Dependencias", "GRAFO");
         btnNavTodas = crearBotonNav("Ver Todas / Consola", "TODAS");
 
@@ -183,10 +183,10 @@ public class GestionTareasView extends JFrame {
         btnNavPila.setText(sidebarExpandido ? "Pilas (Urgentes)" : "PILA");
         btnNavCola.setText(sidebarExpandido ? "Colas (Programadas)" : "COLA");
         btnNavLista.setText(sidebarExpandido ? "Listas (Generales)" : "LIST");
-        btnNavPrioridad.setText(sidebarExpandido ? "Cola Prioridad (Heap)" : "PRIO");
-        btnNavEmpleados.setText(sidebarExpandido ? "Empleados (Árbol BST)" : "EMP");
-        btnNavRecursivo.setText(sidebarExpandido ? "Recursión & Div/Venc" : "REC");
-        btnNavAlgoritmos.setText(sidebarExpandido ? "Hash & Búsquedas" : "HASH");
+        btnNavPrioridad.setText(sidebarExpandido ? "Cola Prioridad" : "PRIO");
+        btnNavEmpleados.setText(sidebarExpandido ? "Empleados" : "EMP");
+        btnNavRecursivo.setText(sidebarExpandido ? "Cálculos y Distribución" : "CALC");
+        btnNavAlgoritmos.setText(sidebarExpandido ? "Búsquedas" : "BUS");
         btnNavGrafo.setText(sidebarExpandido ? "Grafo Dependencias" : "GRAF");
         btnNavTodas.setText(sidebarExpandido ? "Ver Todas / Consola" : "ALL");
 
@@ -318,7 +318,7 @@ public class GestionTareasView extends JFrame {
         modeloPila = new DefaultTableModel(new String[]{"ID", "Título", "Departamento", "Urgencia", "Tiempo (hrs)"}, 0);
         tablaPila = crearTablaEstilizada(modeloPila);
         JScrollPane scroll = new JScrollPane(tablaPila);
-        scroll.setBorder(crearBordeSeccion(" Pilas - Tareas Urgentes (LIFO) ", 14));
+        scroll.setBorder(crearBordeSeccion(" Pilas - Tareas Urgentes ", 14));
 
         JPanel panelBotones = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10)); panelBotones.setOpaque(false);
         btnPopPila = crearBotonEstilizado("Procesar Pila (Pop)", COLOR_ROJO, Color.WHITE);
@@ -334,7 +334,7 @@ public class GestionTareasView extends JFrame {
         modeloCola = new DefaultTableModel(new String[]{"ID", "Título", "Departamento", "Urgencia", "Tiempo (hrs)"}, 0);
         tablaCola = crearTablaEstilizada(modeloCola);
         JScrollPane scroll = new JScrollPane(tablaCola);
-        scroll.setBorder(crearBordeSeccion(" Colas - Tareas Programadas (FIFO) ", 14));
+        scroll.setBorder(crearBordeSeccion(" Colas - Tareas Programadas ", 14));
 
         JPanel panelBotones = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10)); panelBotones.setOpaque(false);
         btnDequeueCola = crearBotonEstilizado("Procesar Cola (Dequeue)", COLOR_ROJO, Color.WHITE);
@@ -367,7 +367,7 @@ public class GestionTareasView extends JFrame {
         modeloPrioridad = new DefaultTableModel(new String[]{"ID", "Título", "Departamento", "Urgencia", "Tiempo (hrs)", "Fecha Límite"}, 0);
         tablaPrioridad = crearTablaEstilizada(modeloPrioridad);
         JScrollPane scroll = new JScrollPane(tablaPrioridad);
-        scroll.setBorder(crearBordeSeccion(" Cola de Prioridad (Heap por Urgencia y Fecha) ", 14));
+        scroll.setBorder(crearBordeSeccion(" Cola de Prioridad - Ordenada por Urgencia y Fecha ", 14));
 
         JPanel panelBotones = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10)); panelBotones.setOpaque(false);
         btnExtraerPrioridad = crearBotonEstilizado("Extraer Mayor Prioridad (Poll)", COLOR_ROJO, Color.WHITE);
@@ -384,12 +384,12 @@ public class GestionTareasView extends JFrame {
 
         JPanel panelForm = new JPanel(new GridLayout(4, 2, 8, 8));
         panelForm.setBackground(COLOR_TARJETA);
-        panelForm.setBorder(crearBordeSeccion(" Registrar Empleado en Árbol Binario ", 14));
+        panelForm.setBorder(crearBordeSeccion(" Registrar Empleado ", 14));
 
         txtEmpleadoId = new JTextField(); estilarCampoTexto(txtEmpleadoId);
         txtEmpleadoNombre = new JTextField(); estilarCampoTexto(txtEmpleadoNombre);
         cbEmpleadoDepto = new JComboBox<>(new String[]{"Sistemas", "Ventas", "Recursos Humanos", "Finanzas", "Logística"});
-        btnAgregarEmpleado = crearBotonEstilizado("+ Insertar en BST", COLOR_PRIMARIO, Color.WHITE);
+        btnAgregarEmpleado = crearBotonEstilizado("+ Registrar Empleado", COLOR_PRIMARIO, Color.WHITE);
 
         panelForm.add(new JLabel("ID Empleado:")); panelForm.add(txtEmpleadoId);
         panelForm.add(new JLabel("Nombre Completo:")); panelForm.add(txtEmpleadoNombre);
@@ -398,7 +398,7 @@ public class GestionTareasView extends JFrame {
 
         JPanel panelAcciones = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 5)); panelAcciones.setOpaque(false);
         txtBuscarEmpleadoId = new JTextField(10); estilarCampoTexto(txtBuscarEmpleadoId);
-        btnBuscarEmpleadoId = crearBotonEstilizado("Buscar por ID (BST)", COLOR_NEUTRO, Color.WHITE);
+        btnBuscarEmpleadoId = crearBotonEstilizado("Buscar por ID", COLOR_NEUTRO, Color.WHITE);
         cbFiltroDeptoEmp = new JComboBox<>(new String[]{"Sistemas", "Ventas", "Recursos Humanos", "Finanzas", "Logística"});
         btnListarEmpleadoDepto = crearBotonEstilizado("Listar por Depto", COLOR_NEUTRO, Color.WHITE);
 
@@ -409,7 +409,7 @@ public class GestionTareasView extends JFrame {
         modeloEmpleados = new DefaultTableModel(new String[]{"ID", "Nombre Empleado", "Departamento"}, 0);
         tablaEmpleados = crearTablaEstilizada(modeloEmpleados);
         JScrollPane scrollTabla = new JScrollPane(tablaEmpleados);
-        scrollTabla.setBorder(crearBordeSeccion(" Empleados Almacenados en el Árbol ", 12));
+        scrollTabla.setBorder(crearBordeSeccion(" Empleados Registrados ", 12));
 
         JPanel panelCentro = new JPanel(new BorderLayout(5, 5)); panelCentro.setOpaque(false);
         panelCentro.add(panelAcciones, BorderLayout.NORTH); panelCentro.add(scrollTabla, BorderLayout.CENTER);
@@ -423,8 +423,8 @@ public class GestionTareasView extends JFrame {
         JPanel panel = new JPanel(new BorderLayout(10, 10)); panel.setOpaque(false);
 
         JPanel panelBotones = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 10)); panelBotones.setOpaque(false);
-        btnCalcularTiempoRecursivo = crearBotonEstilizado("Calcular Tiempo Total Estimado (Recursivo)", COLOR_PRIMARIO, Color.WHITE);
-        btnDistribuirDivideVenceras = crearBotonEstilizado("Distribuir Tareas a Empleados (Divide y Vencerás)", COLOR_VERDE, Color.WHITE);
+        btnCalcularTiempoRecursivo = crearBotonEstilizado("Calcular Tiempo Total Estimado", COLOR_PRIMARIO, Color.WHITE);
+        btnDistribuirDivideVenceras = crearBotonEstilizado("Distribuir Tareas entre Empleados", COLOR_VERDE, Color.WHITE);
         panelBotones.add(btnCalcularTiempoRecursivo); panelBotones.add(btnDistribuirDivideVenceras);
 
         areaResultadoDistribuicion = new JTextArea(15, 70);
@@ -433,7 +433,7 @@ public class GestionTareasView extends JFrame {
         areaResultadoDistribuicion.setBackground(new Color(15, 23, 42));
         areaResultadoDistribuicion.setForeground(new Color(56, 189, 248));
         JScrollPane scroll = new JScrollPane(areaResultadoDistribuicion);
-        scroll.setBorder(crearBordeSeccion(" Resultados de Algoritmos Recursivos y Distribución ", 14));
+        scroll.setBorder(crearBordeSeccion(" Resultados de Cálculos y Distribución de Tareas ", 14));
 
         panel.add(panelBotones, BorderLayout.NORTH); panel.add(scroll, BorderLayout.CENTER);
         return panel;
@@ -445,22 +445,22 @@ public class GestionTareasView extends JFrame {
 
         // Subpanel 1: HashMap
         JPanel p1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10)); p1.setBackground(COLOR_TARJETA);
-        p1.setBorder(crearBordeSeccion(" Tablas Hash (Búsqueda O(1)) ", 12));
+        p1.setBorder(crearBordeSeccion(" Buscar Tarea por ID ", 12));
         txtBuscarHashId = new JTextField(10); estilarCampoTexto(txtBuscarHashId);
-        btnBuscarHash = crearBotonEstilizado("Buscar Tarea por ID en Hash", COLOR_PRIMARIO, Color.WHITE);
+        btnBuscarHash = crearBotonEstilizado("Buscar Tarea por ID", COLOR_PRIMARIO, Color.WHITE);
         p1.add(new JLabel("ID Tarea:")); p1.add(txtBuscarHashId); p1.add(btnBuscarHash);
 
         // Subpanel 2: QuickSort
         JPanel p2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10)); p2.setBackground(COLOR_TARJETA);
-        p2.setBorder(crearBordeSeccion(" Ordenamiento Eficiente (QuickSort) ", 12));
-        btnQuickSortUrgencia = crearBotonEstilizado("Ordenar Tareas de la Lista por Urgencia (QuickSort)", COLOR_TEXTO_DARK, Color.WHITE);
+        p2.setBorder(crearBordeSeccion(" Ordenar Tareas por Urgencia ", 12));
+        btnQuickSortUrgencia = crearBotonEstilizado("Ordenar Tareas de la Lista por Urgencia", COLOR_TEXTO_DARK, Color.WHITE);
         p2.add(btnQuickSortUrgencia);
 
         // Subpanel 3: Búsqueda Binaria
         JPanel p3 = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10)); p3.setBackground(COLOR_TARJETA);
-        p3.setBorder(crearBordeSeccion(" Búsqueda Binaria (O(log n)) ", 12));
+        p3.setBorder(crearBordeSeccion(" Buscar Tarea por ID (Consolidado) ", 12));
         txtBuscarBinariaId = new JTextField(10); estilarCampoTexto(txtBuscarBinariaId);
-        btnBuscarBinaria = crearBotonEstilizado("Buscar Tarea por Búsqueda Binaria", COLOR_VERDE, Color.WHITE);
+        btnBuscarBinaria = crearBotonEstilizado("Buscar Tarea por ID", COLOR_VERDE, Color.WHITE);
         p3.add(new JLabel("ID Tarea:")); p3.add(txtBuscarBinariaId); p3.add(btnBuscarBinaria);
 
         panel.add(p1); panel.add(p2); panel.add(p3);
@@ -477,7 +477,7 @@ public class GestionTareasView extends JFrame {
         txtGrafoTareaPrevia = new JTextField(8); estilarCampoTexto(txtGrafoTareaPrevia);
         txtGrafoTareaSiguiente = new JTextField(8); estilarCampoTexto(txtGrafoTareaSiguiente);
         btnAgregarDependencia = crearBotonEstilizado("+ Agregar Dependencia", COLOR_NEUTRO, Color.WHITE);
-        btnCalcularOrdenTopologico = crearBotonEstilizado("Calcular Secuencia de Ejecución (Orden Topológico)", COLOR_PRIMARIO, Color.WHITE);
+        btnCalcularOrdenTopologico = crearBotonEstilizado("Calcular Secuencia de Ejecución", COLOR_PRIMARIO, Color.WHITE);
 
         panelForm.add(new JLabel("ID Tarea Previa:")); panelForm.add(txtGrafoTareaPrevia);
         panelForm.add(new JLabel("ID Tarea Siguiente:")); panelForm.add(txtGrafoTareaSiguiente);

@@ -345,6 +345,9 @@ public class GestionTareasController {
         vista.getModeloLista().setRowCount(0);
         for (Tarea t : listaGeneral.getLista()) vista.getModeloLista().addRow(new Object[]{t.getId(), t.getTitulo(), t.getDepartamento(), t.getUrgencia(), t.getTiempoEstimado()});
 
+        vista.getModeloPrioridad().setRowCount(0);
+        for (Tarea t : colaPrioridad.obtenerTareasOrdenadas()) vista.getModeloPrioridad().addRow(new Object[]{t.getId(), t.getTitulo(), t.getDepartamento(), t.getUrgencia(), t.getTiempoEstimado(), t.getFechaEntrega()});
+
         vista.getModeloTodas().setRowCount(0);
         for (Tarea t : obtenerTodasLasTareas()) vista.getModeloTodas().addRow(new Object[]{t.getId(), t.getTitulo(), t.getDepartamento(), t.getUrgencia(), t.getTipoEstructura()});
 

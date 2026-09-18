@@ -1,6 +1,8 @@
 package com.example.Modelo;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
 import java.util.PriorityQueue;
 
 public class ColaPrioridadTareas {
@@ -32,5 +34,13 @@ public class ColaPrioridadTareas {
 
     public boolean estaVacia() {
         return colaPrioridad.isEmpty();
+    }
+
+    // Devuelve una copia de las tareas actuales, ordenadas por prioridad,
+    // para poder mostrarlas en la tabla de la Vista sin alterar la cola real.
+    public List<Tarea> obtenerTareasOrdenadas() {
+        List<Tarea> copia = new ArrayList<>(colaPrioridad);
+        copia.sort(colaPrioridad.comparator());
+        return copia;
     }
 }

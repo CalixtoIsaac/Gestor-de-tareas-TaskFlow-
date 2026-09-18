@@ -28,8 +28,6 @@ public class ProcesadorRecursivo {
     }
 
     private static void distribuirRec(List<Tarea> tareas, int inicio, int fin, List<Empleado> empleados, Map<String, List<Tarea>> asignaciones) {
-        if (inicio == fin) return;
-
         // Caso base: Subproblema de 1 tarea
         if (inicio == fin) {
             Empleado menosCargado = obtenerEmpleadoConMenosCarga(empleados, asignaciones);
