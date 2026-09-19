@@ -40,6 +40,7 @@ public class GestionTareasView extends JFrame {
     private JTextField txtTitulo, txtTiempoEstimado;
     private JComboBox<String> cbDepartamento, cbEstructura;
     private JComboBox<Integer> cbUrgencia;
+    private SelectorFechaPanel selectorFecha;
     private JButton btnAgregar;
 
     // Tablas de Tareas y Empleados
@@ -297,6 +298,20 @@ public class GestionTareasView extends JFrame {
         panel.add(new JLabel("Tiempo Estimado (Horas):", SwingConstants.RIGHT), gbc);
         gbc.gridx = 1; gbc.weightx = 0.8;
         txtTiempoEstimado = new JTextField("2"); estilarCampoTexto(txtTiempoEstimado); panel.add(txtTiempoEstimado, gbc);
+
+                gbc.gridx = 0; gbc.gridy = 4; gbc.weightx = 0.2;
+        panel.add(new JLabel("Fecha de Entrega:", SwingConstants.RIGHT), gbc);
+        gbc.gridx = 1; gbc.weightx = 0.8;
+        selectorFecha = new SelectorFechaPanel();
+        panel.add(selectorFecha, gbc);
+
+        gbc.gridx = 1; gbc.gridy = 5; gbc.weightx = 0.8; gbc.insets = new Insets(0, 15, 8, 15);
+        JLabel lblFormatoFecha = new JLabel("Formato requerido: " + selectorFecha.getFormatoTexto()
+                + " (ejemplo: 2025-12-31). Si se deja vacío, se usará la fecha de hoy.");
+        lblFormatoFecha.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+        lblFormatoFecha.setForeground(COLOR_NEUTRO);
+        panel.add(lblFormatoFecha, gbc);
+        gbc.insets = new Insets(8, 15, 8, 15);
 
         gbc.gridx = 0; gbc.gridy = 4; gbc.weightx = 0.2;
         panel.add(new JLabel("Asignar a Estructura:", SwingConstants.RIGHT), gbc);
@@ -562,6 +577,7 @@ public class GestionTareasView extends JFrame {
     public int getTiempoEstimadoInput() {
         try { return Integer.parseInt(txtTiempoEstimado.getText().trim()); } catch (Exception e) { return 2; }
     }
+    public SelectorFechaPanel getSelectorFecha() { return selectorFecha; }
 
     public String getEmpleadoIdInput() { return txtEmpleadoId.getText().trim(); }
     public String getEmpleadoNombreInput() { return txtEmpleadoNombre.getText().trim(); }

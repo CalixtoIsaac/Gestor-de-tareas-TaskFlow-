@@ -1,6 +1,8 @@
 package com.example.Controlador;
 
 import javax.swing.*;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 
 import com.example.Modelo.*;
@@ -72,10 +74,21 @@ public class GestionTareasController {
         vista.getBtnCalcularOrdenTopologico().addActionListener(e -> calcularOrdenTopologico());
     }
 
-    private void agregarTarea() {
+        private void agregarTarea() {
         String titulo = vista.getTituloInput();
         if (titulo.isEmpty()) {
             JOptionPane.showMessageDialog(vista, "El título no puede estar vacío.", "Atención", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        LocalDate fechaEntrega;
+        try {
+            // null si el campo se deja vacío -> Tarea asignará automáticamente la fecha de hoy
+            fechaEntrega = vista.getSelectorFecha().obtenerFechaValidada();
+        } catch (DateTimeParseException ex) {
+            JOptionPane.showMessageDialog(vista,
+                    "La fecha de entrega debe tener el formato " + vista.getSelectorFecha().getFormatoTexto() + " (ejemplo: 2025-12-31).",
+                    "Atención", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
@@ -84,7 +97,7 @@ public class GestionTareasController {
         String tipoEst = vista.getEstructuraSeleccionada();
         int tiempo = vista.getTiempoEstimadoInput();
 
-        Tarea nueva = new Tarea(titulo, depto, urgencia, tipoEst, tiempo, null);
+        Tarea nueva = new Tarea(titulo, depto, urgencia, tipoEst, tiempo, fechaEntrega);
         gestorHashYAlgoritmos.guardarTarea(nueva);
 
         if (tipoEst.startsWith("Pila")) {
@@ -102,6 +115,7 @@ public class GestionTareasController {
         }
 
         vista.limpiarTituloInput();
+        vista.getSelectorFecha().limpiar();
         actualizarTablasYMetricas();
     }
 
