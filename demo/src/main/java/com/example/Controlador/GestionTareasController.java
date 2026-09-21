@@ -199,9 +199,29 @@ public class GestionTareasController {
             return;
         }
 
-        Map<String, List<Tarea>> distribucion = ProcesadorRecursivo.distribuirTareasDivideYVenceras(tareas, listaEmpleadosMemoria);
+        Map<String, List<Tarea>> distribucion = ProcesadorRecursivo.distribuirTareasDivideYVenceras(tareas, arbolEmpleados);
 
         StringBuilder sb = new StringBuilder("=== DISTRIBUCIÓN EQUILIBRADA DE TAREAS (DIVIDE Y VENCERÁS) ===\n\n");
+        Set<String> departamentosSinPersonal = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        for (Tarea tarea : tareas) {
+            boolean asignada = false;
+            for (List<Tarea> tareasAsignadas : distribucion.values()) {
+                if (tareasAsignadas.contains(tarea)) {
+                    asignada = true;
+                    break;
+                }
+            }
+            if (!asignada) {
+                departamentosSinPersonal.add(tarea.getDepartamento());
+            }
+        }
+
+        if (!departamentosSinPersonal.isEmpty()) {
+            sb.append("AVISO: No hay personal disponible en: ")
+                    .append(String.join(", ", departamentosSinPersonal))
+                    .append(". Sus tareas no fueron asignadas.\n\n");
+        }
+
         for (Empleado emp : listaEmpleadosMemoria) {
             sb.append("Empleado: ").append(emp.getNombre()).append(" [ID: ").append(emp.getId()).append("] - Depto: ").append(emp.getDepartamento()).append("\n");
             List<Tarea> asignadas = distribucion.get(emp.getId());
