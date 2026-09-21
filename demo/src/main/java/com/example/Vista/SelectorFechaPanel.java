@@ -24,6 +24,17 @@ import java.util.Locale;
  */
 public class SelectorFechaPanel extends JPanel {
 
+    private JComboBox<Integer> comboDia;
+    private JComboBox<String> comboMes;
+    private JComboBox<Integer> comboAnio;
+
+    public LocalDate getFechaSeleccionada() {
+        int dia = (int) comboDia.getSelectedItem();
+        int mes = comboMes.getSelectedIndex() + 1;
+        int anio = (int) comboAnio.getSelectedItem();
+        return LocalDate.of(anio, mes, dia);
+    }
+
     public static final String FORMATO_TEXTO = "yyyy-MM-dd";
     private static final DateTimeFormatter FORMATEADOR =
             DateTimeFormatter.ofPattern(FORMATO_TEXTO).withResolverStyle(ResolverStyle.STRICT);

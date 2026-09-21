@@ -274,56 +274,78 @@ public class GestionTareasView extends JFrame {
         Font fuenteNegrita = new Font("Segoe UI", Font.BOLD, 12);
 
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(8, 15, 8, 15);
+        gbc.insets = new Insets(10, 12, 10, 12);
         gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.anchor = GridBagConstraints.WEST;
 
-        gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0.2;
-        panel.add(new JLabel("Título de Tarea:", SwingConstants.RIGHT), gbc);
-        gbc.gridx = 1; gbc.weightx = 0.8;
+        gbc.gridx = 0; gbc.gridy = 0; gbc.weightx = 0.22;
+        JLabel lblTitulo = new JLabel("Título de Tarea:", SwingConstants.RIGHT);
+        lblTitulo.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        lblTitulo.setForeground(COLOR_TEXTO_DARK);
+        panel.add(lblTitulo, gbc);
+        gbc.gridx = 1; gbc.weightx = 0.78;
         txtTitulo = new JTextField(); estilarCampoTexto(txtTitulo); panel.add(txtTitulo, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 1; gbc.weightx = 0.2;
-        panel.add(new JLabel("Departamento:", SwingConstants.RIGHT), gbc);
-        gbc.gridx = 1; gbc.weightx = 0.8;
+        gbc.gridx = 0; gbc.gridy = 1; gbc.weightx = 0.22;
+        JLabel lblDepto = new JLabel("Departamento:", SwingConstants.RIGHT);
+        lblDepto.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        lblDepto.setForeground(COLOR_TEXTO_DARK);
+        panel.add(lblDepto, gbc);
+        gbc.gridx = 1; gbc.weightx = 0.78;
         cbDepartamento = new JComboBox<>(new String[]{"Sistemas", "Ventas", "Recursos Humanos", "Finanzas", "Logística"});
         cbDepartamento.setBackground(Color.WHITE); panel.add(cbDepartamento, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 2; gbc.weightx = 0.2;
-        panel.add(new JLabel("Urgencia (1-Baja a 5-Crítica):", SwingConstants.RIGHT), gbc);
-        gbc.gridx = 1; gbc.weightx = 0.8;
+        gbc.gridx = 0; gbc.gridy = 2; gbc.weightx = 0.22;
+        JLabel lblUrgencia = new JLabel("Urgencia (1-Baja a 5-Crítica):", SwingConstants.RIGHT);
+        lblUrgencia.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        lblUrgencia.setForeground(COLOR_TEXTO_DARK);
+        panel.add(lblUrgencia, gbc);
+        gbc.gridx = 1; gbc.weightx = 0.78;
         cbUrgencia = new JComboBox<>(new Integer[]{1, 2, 3, 4, 5});
         cbUrgencia.setBackground(Color.WHITE); panel.add(cbUrgencia, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 3; gbc.weightx = 0.2;
-        panel.add(new JLabel("Tiempo Estimado (Horas):", SwingConstants.RIGHT), gbc);
-        gbc.gridx = 1; gbc.weightx = 0.8;
+        gbc.gridx = 0; gbc.gridy = 3; gbc.weightx = 0.22;
+        JLabel lblTiempo = new JLabel("Tiempo Estimado (Horas):", SwingConstants.RIGHT);
+        lblTiempo.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        lblTiempo.setForeground(COLOR_TEXTO_DARK);
+        panel.add(lblTiempo, gbc);
+        gbc.gridx = 1; gbc.weightx = 0.78;
         txtTiempoEstimado = new JTextField("2"); estilarCampoTexto(txtTiempoEstimado); panel.add(txtTiempoEstimado, gbc);
 
-                gbc.gridx = 0; gbc.gridy = 4; gbc.weightx = 0.2;
-        panel.add(new JLabel("Fecha de Entrega:", SwingConstants.RIGHT), gbc);
-        gbc.gridx = 1; gbc.weightx = 0.8;
         selectorFecha = new SelectorFechaPanel();
-        panel.add(selectorFecha, gbc);
 
-        gbc.gridx = 1; gbc.gridy = 5; gbc.weightx = 0.8; gbc.insets = new Insets(0, 15, 8, 15);
+        gbc.gridx = 0; gbc.gridy = 4; gbc.weightx = 0.22;
+        JLabel lblFecha = new JLabel("Fecha de Entrega:", SwingConstants.RIGHT);
+        lblFecha.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        lblFecha.setForeground(COLOR_TEXTO_DARK);
+        panel.add(lblFecha, gbc);
+
+        gbc.gridx = 1; gbc.gridy = 4; gbc.weightx = 0.78;
         JLabel lblFormatoFecha = new JLabel("Formato requerido: " + selectorFecha.getFormatoTexto()
                 + " (ejemplo: 2025-12-31). Si se deja vacío, se usará la fecha de hoy.");
         lblFormatoFecha.setFont(new Font("Segoe UI", Font.PLAIN, 10));
         lblFormatoFecha.setForeground(COLOR_NEUTRO);
         panel.add(lblFormatoFecha, gbc);
-        gbc.insets = new Insets(8, 15, 8, 15);
 
-        gbc.gridx = 0; gbc.gridy = 4; gbc.weightx = 0.2;
-        panel.add(new JLabel("Asignar a Estructura:", SwingConstants.RIGHT), gbc);
-        gbc.gridx = 1; gbc.weightx = 0.8;
+        gbc.gridx = 1; gbc.gridy = 5; gbc.weightx = 0.78; gbc.insets = new Insets(0, 12, 10, 12);
+        panel.add(selectorFecha, gbc);
+        gbc.insets = new Insets(10, 12, 10, 12);
+
+        gbc.gridx = 0; gbc.gridy = 6; gbc.weightx = 0.22;
+        JLabel lblEstructura = new JLabel("Asignar a Estructura:", SwingConstants.RIGHT);
+        lblEstructura.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        lblEstructura.setForeground(COLOR_TEXTO_DARK);
+        panel.add(lblEstructura, gbc);
+        gbc.gridx = 1; gbc.weightx = 0.78;
         cbEstructura = new JComboBox<>(new String[]{"Pila (Urgente)", "Cola (Secuencial)", "Lista (General)", "Cola de Prioridad (Urgencia/Fecha)"});
         cbEstructura.setBackground(Color.WHITE); panel.add(cbEstructura, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 5; gbc.gridwidth = 2; gbc.fill = GridBagConstraints.NONE;
-        gbc.anchor = GridBagConstraints.CENTER; gbc.insets = new Insets(15, 15, 10, 15);
+        gbc.gridx = 0; gbc.gridy = 7; gbc.gridwidth = 2; gbc.fill = GridBagConstraints.NONE;
+        gbc.anchor = GridBagConstraints.CENTER; gbc.insets = new Insets(18, 15, 8, 15);
         btnAgregar = crearBotonEstilizado("  +  Agregar Tarea al Sistema  ", COLOR_PRIMARIO, Color.WHITE);
-        btnAgregar.setPreferredSize(new Dimension(300, 40));
+        btnAgregar.setPreferredSize(new Dimension(320, 42));
         panel.add(btnAgregar, gbc);
+        gbc.gridwidth = 1; gbc.anchor = GridBagConstraints.LINE_START;
 
         return panel;
     }
