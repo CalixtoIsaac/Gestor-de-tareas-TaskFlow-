@@ -87,7 +87,8 @@ public class GestionTareasController {
             fechaEntrega = vista.getSelectorFecha().obtenerFechaValidada();
         } catch (DateTimeParseException ex) {
             JOptionPane.showMessageDialog(vista,
-                    "La fecha de entrega debe tener el formato " + vista.getSelectorFecha().getFormatoTexto() + " (ejemplo: 2025-12-31).",
+                    "La fecha de entrega debe tener un formato válido: " + vista.getSelectorFecha().getFormatoTexto()
+                            + " (ejemplo: 2025-12-31), o formatos comunes como 31/12/2025.",
                     "Atención", JOptionPane.WARNING_MESSAGE);
             return;
         }

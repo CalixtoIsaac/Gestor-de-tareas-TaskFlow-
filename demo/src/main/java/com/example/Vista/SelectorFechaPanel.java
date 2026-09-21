@@ -37,7 +37,14 @@ public class SelectorFechaPanel extends JPanel {
 
     public static final String FORMATO_TEXTO = "yyyy-MM-dd";
     private static final DateTimeFormatter FORMATEADOR =
-            DateTimeFormatter.ofPattern(FORMATO_TEXTO).withResolverStyle(ResolverStyle.STRICT);
+            DateTimeFormatter.ofPattern("uuuu-MM-dd").withResolverStyle(ResolverStyle.STRICT);
+    private static final DateTimeFormatter[] FORMATOS_ACEPTADOS = {
+            FORMATEADOR,
+            DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(ResolverStyle.STRICT),
+            DateTimeFormatter.ofPattern("dd-MM-uuuu").withResolverStyle(ResolverStyle.STRICT),
+            DateTimeFormatter.ofPattern("uuuu/MM/dd").withResolverStyle(ResolverStyle.STRICT),
+            DateTimeFormatter.ofPattern("MM/dd/uuuu").withResolverStyle(ResolverStyle.STRICT)
+    };
 
     private final JTextField txtFecha;
     private final JButton btnCalendario;
@@ -97,7 +104,20 @@ public class SelectorFechaPanel extends JPanel {
         if (texto.isEmpty()) {
             return null;
         }
-        return LocalDate.parse(texto, FORMATEADOR);
+
+        for (DateTimeFormatter formatter : FORMATOS_ACEPTADOS) {
+            try {
+                return LocalDate.parse(texto, formatter);
+            } catch (DateTimeParseException ignored) {
+                // Se prueba el siguiente formato admitido.
+            }
+        }
+
+        throw new DateTimeParseException(
+                "Formato de fecha inválido. Usa yyyy-MM-dd, dd/MM/yyyy o dd-MM-yyyy.",
+                texto,
+                0
+        );
     }
 
     private void mostrarCalendario() {
