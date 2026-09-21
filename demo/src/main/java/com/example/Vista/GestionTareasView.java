@@ -27,6 +27,9 @@ public class GestionTareasView extends JFrame {
     private JPanel panelContenidoCards;
     private JPanel panelSidebar;
     private boolean sidebarExpandido = true;
+    private JButton botonNavActivo;
+    private boolean temaOscuro = false;
+    private JButton btnCambiarTema;
 
     // Botones del Menú Lateral
     private JButton btnMenuToggle;
@@ -155,6 +158,8 @@ public class GestionTareasView extends JFrame {
         panelSidebar.add(Box.createRigidArea(new Dimension(0, 3)));
         panelSidebar.add(btnNavTodas);
 
+        establecerBotonNavActivo(btnNavDashboard);
+        aplicarTemaGeneral();
         panelRaiz.add(panelSidebar, BorderLayout.WEST);
     }
 
@@ -169,9 +174,26 @@ public class GestionTareasView extends JFrame {
         btn.setBorderPainted(false);
         btn.setHorizontalAlignment(SwingConstants.LEFT);
         btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btn.setOpaque(true);
 
-        btn.addActionListener(e -> cardLayout.show(panelContenidoCards, cardName));
+        btn.addActionListener(e -> {
+            cardLayout.show(panelContenidoCards, cardName);
+            establecerBotonNavActivo(btn);
+        });
         return btn;
+    }
+
+    private void establecerBotonNavActivo(JButton botonSeleccionado) {
+        if (botonNavActivo != null && botonNavActivo != botonSeleccionado) {
+            botonNavActivo.setBackground(temaOscuro ? new Color(15, 23, 42) : COLOR_SIDEBAR_BG);
+            botonNavActivo.setBorderPainted(false);
+        }
+
+        botonNavActivo = botonSeleccionado;
+        botonNavActivo.setBackground(new Color(96, 165, 250));
+        botonNavActivo.setForeground(Color.WHITE);
+        botonNavActivo.setBorderPainted(true);
+        botonNavActivo.setBorder(BorderFactory.createMatteBorder(0, 4, 0, 0, new Color(191, 219, 254)));
     }
 
     private void alternarSidebar() {
@@ -542,9 +564,11 @@ public class GestionTareasView extends JFrame {
         JScrollPane scrollTabla = new JScrollPane(tablaTodas);
         scrollTabla.setBorder(crearBordeSeccion(" Consolidado General de Tareas ", 14));
 
-        JPanel panelTopAction = new JPanel(new FlowLayout(FlowLayout.LEFT)); panelTopAction.setOpaque(false);
+        JPanel panelTopAction = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10)); panelTopAction.setOpaque(false);
         btnVerOrdenadas = crearBotonEstilizado("Ver Todas (Ordenadas por Urgencia/Depto)", COLOR_TEXTO_DARK, Color.WHITE);
-        panelTopAction.add(btnVerOrdenadas);
+        btnCambiarTema = crearBotonEstilizado("Cambiar a modo oscuro", new Color(15, 23, 42), Color.WHITE);
+        btnCambiarTema.addActionListener(e -> cambiarTema());
+        panelTopAction.add(btnVerOrdenadas); panelTopAction.add(btnCambiarTema);
 
         areaConsolaGUI = new JTextArea(6, 80); areaConsolaGUI.setEditable(false);
         areaConsolaGUI.setFont(new Font("Consolas", Font.PLAIN, 12));
@@ -576,6 +600,89 @@ public class GestionTareasView extends JFrame {
         btn.setBackground(bg); btn.setForeground(fg); btn.setFocusPainted(false);
         btn.setCursor(new Cursor(Cursor.HAND_CURSOR)); btn.setBorder(BorderFactory.createEmptyBorder(7, 12, 7, 12));
         return btn;
+    }
+
+    private void cambiarTema() {
+        temaOscuro = !temaOscuro;
+        aplicarTemaGeneral();
+        if (btnCambiarTema != null) {
+            btnCambiarTema.setText(temaOscuro ? "Cambiar a modo claro" : "Cambiar a modo oscuro");
+        }
+    }
+
+    private void aplicarTemaGeneral() {
+        Color fondoApp = temaOscuro ? new Color(15, 23, 42) : COLOR_FONDO_APP;
+        Color panelOscuro = temaOscuro ? new Color(30, 41, 59) : COLOR_TARJETA;
+        Color fondoTarjeta = temaOscuro ? new Color(51, 65, 85) : COLOR_TARJETA;
+        Color textoClaro = temaOscuro ? Color.WHITE : COLOR_TEXTO_DARK;
+        Color textoSuave = temaOscuro ? new Color(203, 213, 225) : COLOR_NEUTRO;
+
+        if (panelSidebar != null) {
+            panelSidebar.setBackground(temaOscuro ? new Color(15, 23, 42) : COLOR_SIDEBAR_BG);
+        }
+        if (panelContenidoCards != null) {
+            panelContenidoCards.setBackground(fondoApp);
+        }
+
+        if (botonNavActivo != null) {
+            establecerBotonNavActivo(botonNavActivo);
+        }
+
+        aplicarTemaRecursivo(panelContenidoCards, fondoTarjeta, textoClaro, textoSuave, panelOscuro);
+        aplicarTemaRecursivo(panelSidebar, fondoTarjeta, textoClaro, textoSuave, panelOscuro);
+
+        if (btnCambiarTema != null) {
+            btnCambiarTema.setForeground(Color.WHITE);
+            btnCambiarTema.setBackground(temaOscuro ? new Color(59, 130, 246) : new Color(15, 23, 42));
+        }
+    }
+
+    private void aplicarTemaRecursivo(Container contenedor, Color fondoTarjeta, Color textoClaro, Color textoSuave, Color panelOscuro) {
+        if (contenedor == null) return;
+
+        if (contenedor instanceof JPanel panel) {
+            panel.setOpaque(true);
+            panel.setBackground(temaOscuro ? fondoTarjeta : panel.getBackground());
+        }
+
+        for (Component componente : contenedor.getComponents()) {
+            if (componente instanceof JPanel panel) {
+                panel.setBackground(temaOscuro ? fondoTarjeta : panel.getBackground());
+                if (temaOscuro) {
+                    panel.setBorder(BorderFactory.createCompoundBorder(
+                            panel.getBorder(),
+                            new EmptyBorder(4, 6, 6, 6)
+                    ));
+                }
+                aplicarTemaRecursivo(panel, fondoTarjeta, textoClaro, textoSuave, panelOscuro);
+            } else if (componente instanceof JLabel label) {
+                label.setForeground(temaOscuro ? textoClaro : label.getForeground());
+            } else if (componente instanceof JTextField field) {
+                field.setBackground(temaOscuro ? new Color(30, 41, 59) : Color.WHITE);
+                field.setForeground(temaOscuro ? Color.WHITE : Color.BLACK);
+                field.setCaretColor(temaOscuro ? Color.WHITE : Color.BLACK);
+            } else if (componente instanceof JTextArea area) {
+                area.setBackground(temaOscuro ? new Color(15, 23, 42) : new Color(255, 255, 255));
+                area.setForeground(temaOscuro ? new Color(236, 253, 245) : Color.BLACK);
+            } else if (componente instanceof JComboBox<?> combo) {
+                combo.setBackground(temaOscuro ? new Color(30, 41, 59) : Color.WHITE);
+                combo.setForeground(temaOscuro ? Color.WHITE : Color.BLACK);
+            } else if (componente instanceof JTable table) {
+                table.setBackground(temaOscuro ? new Color(51, 65, 85) : Color.WHITE);
+                table.setForeground(temaOscuro ? Color.WHITE : Color.BLACK);
+                table.setSelectionBackground(temaOscuro ? new Color(59, 130, 246) : new Color(219, 234, 254));
+                table.setSelectionForeground(temaOscuro ? Color.WHITE : Color.BLACK);
+                table.setGridColor(temaOscuro ? new Color(71, 85, 105) : COLOR_BORDE);
+            } else if (componente instanceof JScrollPane scroll) {
+                scroll.getViewport().setBackground(temaOscuro ? new Color(51, 65, 85) : Color.WHITE);
+                scroll.setBackground(temaOscuro ? new Color(51, 65, 85) : Color.WHITE);
+            } else if (componente instanceof JButton button) {
+                if (button != btnCambiarTema && button != botonNavActivo) {
+                    button.setBackground(temaOscuro ? new Color(71, 85, 105) : button.getBackground());
+                    button.setForeground(temaOscuro ? Color.WHITE : button.getForeground());
+                }
+            }
+        }
     }
 
     private CompoundBorder crearBordeSeccion(String titulo, int tamanoFuente) {
