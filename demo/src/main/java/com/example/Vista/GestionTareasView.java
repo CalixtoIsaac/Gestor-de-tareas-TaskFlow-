@@ -56,7 +56,7 @@ public class GestionTareasView extends JFrame {
     // Componentes Árbol Binario (Empleados)
     private JTextField txtEmpleadoId, txtEmpleadoNombre, txtBuscarEmpleadoId;
     private JComboBox<String> cbEmpleadoDepto, cbFiltroDeptoEmp;
-    private JButton btnAgregarEmpleado, btnBuscarEmpleadoId, btnListarEmpleadoDepto;
+    private JButton btnAgregarEmpleado, btnBuscarEmpleadoId, btnListarEmpleadoDepto, btnMostrarTodosEmpleados;
 
     // Componentes Recursividad & Divide y Vencerás
     private JButton btnCalcularTiempoRecursivo, btnDistribuirDivideVenceras;
@@ -438,10 +438,13 @@ public class GestionTareasView extends JFrame {
         btnBuscarEmpleadoId = crearBotonEstilizado("Buscar por ID", COLOR_NEUTRO, Color.WHITE);
         cbFiltroDeptoEmp = new JComboBox<>(new String[]{"Sistemas", "Ventas", "Recursos Humanos", "Finanzas", "Logística"});
         btnListarEmpleadoDepto = crearBotonEstilizado("Listar por Depto", COLOR_NEUTRO, Color.WHITE);
+        btnMostrarTodosEmpleados = crearBotonEstilizado("Ver Todos", COLOR_VERDE, Color.WHITE);
 
         panelAcciones.add(new JLabel("ID:")); panelAcciones.add(txtBuscarEmpleadoId); panelAcciones.add(btnBuscarEmpleadoId);
         panelAcciones.add(Box.createHorizontalStrut(15));
         panelAcciones.add(new JLabel("Depto:")); panelAcciones.add(cbFiltroDeptoEmp); panelAcciones.add(btnListarEmpleadoDepto);
+        panelAcciones.add(Box.createHorizontalStrut(10));
+        panelAcciones.add(btnMostrarTodosEmpleados);
 
         modeloEmpleados = new DefaultTableModel(new String[]{"ID", "Nombre Empleado", "Departamento"}, 0);
         tablaEmpleados = crearTablaEstilizada(modeloEmpleados);
@@ -633,6 +636,7 @@ public class GestionTareasView extends JFrame {
     public JButton getBtnAgregarEmpleado() { return btnAgregarEmpleado; }
     public JButton getBtnBuscarEmpleadoId() { return btnBuscarEmpleadoId; }
     public JButton getBtnListarEmpleadoDepto() { return btnListarEmpleadoDepto; }
+    public JButton getBtnMostrarTodosEmpleados() { return btnMostrarTodosEmpleados; }
     public JButton getBtnCalcularTiempoRecursivo() { return btnCalcularTiempoRecursivo; }
     public JButton getBtnDistribuirDivideVenceras() { return btnDistribuirDivideVenceras; }
     public JButton getBtnBuscarHash() { return btnBuscarHash; }

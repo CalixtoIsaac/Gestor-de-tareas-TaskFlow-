@@ -59,6 +59,7 @@ public class GestionTareasController {
         vista.getBtnAgregarEmpleado().addActionListener(e -> agregarEmpleado());
         vista.getBtnBuscarEmpleadoId().addActionListener(e -> buscarEmpleadoBST());
         vista.getBtnListarEmpleadoDepto().addActionListener(e -> listarEmpleadosDeptoBST());
+        vista.getBtnMostrarTodosEmpleados().addActionListener(e -> mostrarTodosLosEmpleados());
 
         // Eventos Recursividad y Divide & Vencerás
         vista.getBtnCalcularTiempoRecursivo().addActionListener(e -> calcularTiempoRecursivo());
@@ -174,6 +175,11 @@ public class GestionTareasController {
         List<Empleado> emps = arbolEmpleados.obtenerPorDepartamento(depto);
         actualizarTablaEmpleados(emps);
         vista.logGUI("[BST TRAVERSAL] Se encontraron " + emps.size() + " empleados en " + depto);
+    }
+
+    private void mostrarTodosLosEmpleados() {
+        actualizarTablaEmpleados(listaEmpleadosMemoria);
+        vista.logGUI("[BST TRAVERSAL] Se muestran todos los empleados registrados.");
     }
 
     private void calcularTiempoRecursivo() {
