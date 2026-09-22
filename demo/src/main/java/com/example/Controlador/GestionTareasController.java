@@ -3,10 +3,12 @@ package com.example.Controlador;
 import javax.swing.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.sql.SQLException;
 import java.util.*;
 
 import com.example.Modelo.*;
 import com.example.Vista.*;
+import com.example.persistencia.*;
 
 public class GestionTareasController {
 
@@ -21,6 +23,8 @@ public class GestionTareasController {
     private GestorTablasHashYAlgoritmos gestorHashYAlgoritmos;
     private GrafoDependencias grafoDependencias;
     private List<Empleado> listaEmpleadosMemoria;
+    private TareaRepositorio tareaRepositorio;
+    private EmpleadoRepositorio empleadoRepositorio;
 
     private int resueltasPila = 0, resueltasCola = 0, resueltasLista = 0;
 
@@ -36,8 +40,62 @@ public class GestionTareasController {
         this.grafoDependencias = new GrafoDependencias();
         this.listaEmpleadosMemoria = new ArrayList<>();
 
+        inicializarPersistencia();
         initControlador();
         actualizarTablasYMetricas();
+    }
+
+    private void inicializarPersistencia() {
+        try {
+            ConexionBD conexionBD = new ConexionBD();
+            tareaRepositorio = new TareaRepositorio(conexionBD);
+            empleadoRepositorio = new EmpleadoRepositorio(conexionBD);
+            cargarDesdeBD();
+        } catch (SQLException ex) {
+            vista.logGUI("[BD] No se pudieron cargar los datos: " + ex.getMessage());
+        }
+    }
+
+    private void cargarDesdeBD() throws SQLException {
+        for (Tarea tarea : tareaRepositorio.cargarTodas()) {
+            gestorHashYAlgoritmos.guardarTarea(tarea);
+            if (tarea.getTipoEstructura().startsWith("Pila")) {
+                pilaUrgentes.push(tarea);
+            } else if (tarea.getTipoEstructura().startsWith("Cola de Prioridad")) {
+                colaPrioridad.agregarTarea(tarea);
+            } else if (tarea.getTipoEstructura().startsWith("Cola")) {
+                colaProgramadas.enqueue(tarea);
+            } else {
+                listaGeneral.insert(tarea);
+            }
+        }
+        for (Empleado empleado : empleadoRepositorio.cargarTodos()) {
+            listaEmpleadosMemoria.add(empleado);
+            arbolEmpleados.insertar(empleado);
+            gestorHashYAlgoritmos.guardarEmpleado(empleado);
+        }
+        vista.logGUI("[BD] Datos cargados correctamente.");
+    }
+
+    public void guardarEnBD() {
+        if (tareaRepositorio == null || empleadoRepositorio == null) {
+            return;
+        }
+        try {
+            Map<Integer, Tarea> tareasUnicas = new LinkedHashMap<>();
+            for (Tarea tarea : obtenerTodasLasTareas()) {
+                tareasUnicas.put(tarea.getId(), tarea);
+            }
+            tareaRepositorio.guardarTodas(tareasUnicas.values());
+            Map<String, Empleado> empleadosUnicos = new LinkedHashMap<>();
+            for (Empleado empleado : listaEmpleadosMemoria) {
+                empleadosUnicos.put(empleado.getId(), empleado);
+            }
+            empleadoRepositorio.guardarTodos(empleadosUnicos.values());
+            vista.logGUI("[BD] Datos guardados correctamente.");
+        } catch (SQLException ex) {
+            vista.logGUI("[BD] No se pudieron guardar los datos: " + ex.getMessage());
+        }
     }
 
     private void initControlador() {
@@ -314,6 +372,7 @@ public class GestionTareasController {
         todas.addAll(pilaUrgentes.getPila());
         todas.addAll(colaProgramadas.getCola());
         todas.addAll(listaGeneral.getLista());
+        todas.addAll(colaPrioridad.obtenerTareasOrdenadas());
         return todas;
     }
 

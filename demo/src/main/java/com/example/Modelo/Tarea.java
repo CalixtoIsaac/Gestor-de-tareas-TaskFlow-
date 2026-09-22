@@ -23,6 +23,18 @@ public class Tarea {
         this.fechaEntrega = fechaEntrega != null ? fechaEntrega : LocalDate.now();
     }
 
+    public Tarea(int id, String titulo, String departamento, int urgencia, String tipoEstructura,
+                 int tiempoEstimado, LocalDate fechaEntrega) {
+        this.id = id;
+        contadorId = Math.max(contadorId, id + 1);
+        this.titulo = titulo;
+        this.departamento = departamento;
+        this.urgencia = urgencia;
+        this.tipoEstructura = tipoEstructura;
+        this.tiempoEstimado = tiempoEstimado;
+        this.fechaEntrega = fechaEntrega != null ? fechaEntrega : LocalDate.now();
+    }
+
     // Constructor de compatibilidad
     public Tarea(String titulo, String departamento, int urgencia, String tipoEstructura) {
         this(titulo, departamento, urgencia, tipoEstructura, 2, LocalDate.now().plusDays(1));

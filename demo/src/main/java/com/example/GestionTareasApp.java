@@ -4,6 +4,8 @@ package com.example;
 // IMPORTS
 // ==========================================
 import javax.swing.SwingUtilities;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 
 import com.example.Controlador.GestionTareasController;
 import com.example.Modelo.ColaTareas;
@@ -30,7 +32,13 @@ public class GestionTareasApp {
             GestionTareasView vista = new GestionTareasView();
 
             // Instancia del Controlador vinculando Vista y Modelos
-            new GestionTareasController(vista, pila, cola, lista);
+            GestionTareasController controlador = new GestionTareasController(vista, pila, cola, lista);
+            vista.addWindowListener(new WindowAdapter() {
+                @Override
+                public void windowClosing(WindowEvent e) {
+                    controlador.guardarEnBD();
+                }
+            });
 
             // Desplegar la interfaz
             vista.setVisible(true);
