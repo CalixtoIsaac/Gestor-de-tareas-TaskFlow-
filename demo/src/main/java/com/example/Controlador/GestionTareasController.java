@@ -365,7 +365,7 @@ public class GestionTareasController {
     }
 
     private void buscarPorDepartamento() {
-        String depto = vista.getDepartamentoSeleccionado();
+        String depto = vista.getFiltroDeptoListaSeleccionado();
         ArrayList<Tarea> resultados = new ArrayList<>(listaGeneral.find(depto));
         StringBuilder sb = new StringBuilder("=== TAREAS EN DEPARTAMENTO " + depto + " ===\n\n");
         for (Tarea t : resultados) sb.append(t.toString()).append("\n");

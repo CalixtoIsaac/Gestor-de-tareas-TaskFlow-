@@ -58,7 +58,7 @@ public class GestionTareasView extends JFrame {
 
     // Componentes Árbol Binario (Empleados)
     private JTextField txtEmpleadoId, txtEmpleadoNombre, txtBuscarEmpleadoId;
-    private JComboBox<String> cbEmpleadoDepto, cbFiltroDeptoEmp;
+    private JComboBox<String> cbEmpleadoDepto, cbFiltroDeptoEmp, cbFiltroDeptoLista;
     private JButton btnAgregarEmpleado, btnBuscarEmpleadoId, btnListarEmpleadoDepto, btnMostrarTodosEmpleados;
 
     // Componentes Recursividad & Divide y Vencerás
@@ -412,6 +412,10 @@ public class GestionTareasView extends JFrame {
         scroll.setBorder(crearBordeSeccion(" Listas - Tareas Generales ", 14));
 
         JPanel panelBotones = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10)); panelBotones.setOpaque(false);
+        panelBotones.add(new JLabel("Departamento:"));
+        cbFiltroDeptoLista = new JComboBox<>(new String[]{"Sistemas", "Ventas", "Recursos Humanos", "Finanzas", "Logística"});
+        cbFiltroDeptoLista.setBackground(Color.WHITE);
+        panelBotones.add(cbFiltroDeptoLista);
         btnEliminarLista = crearBotonEstilizado("Eliminar por ID", COLOR_NEUTRO, Color.WHITE);
         btnBuscarDepto = crearBotonEstilizado("Buscar por Depto", COLOR_NEUTRO, Color.WHITE);
         panelBotones.add(btnEliminarLista); panelBotones.add(btnBuscarDepto);
@@ -716,6 +720,7 @@ public class GestionTareasView extends JFrame {
     public String getEmpleadoDeptoSeleccionado() { return (String) cbEmpleadoDepto.getSelectedItem(); }
     public String getBuscarEmpleadoIdInput() { return txtBuscarEmpleadoId.getText().trim(); }
     public String getFiltroDeptoEmpSeleccionado() { return (String) cbFiltroDeptoEmp.getSelectedItem(); }
+    public String getFiltroDeptoListaSeleccionado() { return (String) cbFiltroDeptoLista.getSelectedItem(); }
 
     public String getBuscarHashIdInput() { return txtBuscarHashId.getText().trim(); }
     public String getBuscarBinariaIdInput() { return txtBuscarBinariaId.getText().trim(); }
