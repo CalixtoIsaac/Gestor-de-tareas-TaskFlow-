@@ -1,6 +1,8 @@
 com\example\Vista\GestionTareasView.class
+com\example\Vista\GestionTareasView$3.class
 com\example\Controlador\GestionTareasController.class
 com\example\Modelo\Empleado.class
+com\example\Vista\GestionTareasView$2.class
 com\example\Modelo\GrafoDependencias.class
 com\example\GestionTareasApp.class
 com\example\Modelo\ColaPrioridadTareas.class

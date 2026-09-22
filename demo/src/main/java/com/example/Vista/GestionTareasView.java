@@ -7,6 +7,8 @@ import javax.swing.border.TitledBorder;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
+import javax.swing.plaf.basic.BasicArrowButton;
+import javax.swing.plaf.basic.BasicComboBoxUI;
 import java.awt.*;
 
 public class GestionTareasView extends JFrame {
@@ -91,6 +93,7 @@ public class GestionTareasView extends JFrame {
         initHeader(panelRaiz);
         initSidebar(panelRaiz);
         initMainCards(panelRaiz);
+        aplicarTemaGeneral();
     }
 
     private void initHeader(JPanel panelRaiz) {
@@ -175,6 +178,7 @@ public class GestionTareasView extends JFrame {
         btn.setHorizontalAlignment(SwingConstants.LEFT);
         btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
         btn.setOpaque(true);
+        guardarColoresOriginales(btn);
 
         btn.addActionListener(e -> {
             cardLayout.show(panelContenidoCards, cardName);
@@ -626,6 +630,7 @@ public class GestionTareasView extends JFrame {
         }
         if (panelContenidoCards != null) {
             panelContenidoCards.setBackground(fondoApp);
+            panelContenidoCards.setOpaque(temaOscuro);
         }
 
         if (botonNavActivo != null) {
@@ -634,6 +639,15 @@ public class GestionTareasView extends JFrame {
 
         aplicarTemaRecursivo(panelContenidoCards, fondoTarjeta, textoClaro, textoSuave, panelOscuro);
         aplicarTemaRecursivo(panelSidebar, fondoTarjeta, textoClaro, textoSuave, panelOscuro);
+
+        if (panelSidebar != null) {
+            panelSidebar.setBackground(temaOscuro ? new Color(15, 23, 42) : COLOR_SIDEBAR_BG);
+        }
+
+        if (!temaOscuro && panelContenidoCards != null) {
+            panelContenidoCards.setBackground(COLOR_FONDO_APP);
+            panelContenidoCards.setOpaque(false);
+        }
 
         if (btnCambiarTema != null) {
             btnCambiarTema.setForeground(Color.WHITE);
@@ -644,49 +658,99 @@ public class GestionTareasView extends JFrame {
     private void aplicarTemaRecursivo(Container contenedor, Color fondoTarjeta, Color textoClaro, Color textoSuave, Color panelOscuro) {
         if (contenedor == null) return;
 
-        if (contenedor instanceof JPanel panel) {
-            panel.setOpaque(true);
-            panel.setBackground(temaOscuro ? fondoTarjeta : panel.getBackground());
+        if (contenedor instanceof JComponent componenteRaiz) {
+            guardarColoresOriginales(componenteRaiz);
+            if (componenteRaiz instanceof JPanel panel) {
+                panel.setBackground(temaOscuro ? fondoTarjeta : COLOR_TARJETA);
+                panel.setOpaque(temaOscuro || opacidadOriginal(panel));
+            }
         }
 
         for (Component componente : contenedor.getComponents()) {
+            if (componente instanceof JComponent componenteSwing) {
+                guardarColoresOriginales(componenteSwing);
+            }
+
             if (componente instanceof JPanel panel) {
-                panel.setBackground(temaOscuro ? fondoTarjeta : panel.getBackground());
-                if (temaOscuro) {
-                    panel.setBorder(BorderFactory.createCompoundBorder(
-                            panel.getBorder(),
-                            new EmptyBorder(4, 6, 6, 6)
-                    ));
-                }
+                panel.setBackground(temaOscuro ? fondoTarjeta : COLOR_TARJETA);
+                panel.setOpaque(temaOscuro || opacidadOriginal(panel));
                 aplicarTemaRecursivo(panel, fondoTarjeta, textoClaro, textoSuave, panelOscuro);
             } else if (componente instanceof JLabel label) {
-                label.setForeground(temaOscuro ? textoClaro : label.getForeground());
+                label.setForeground(temaOscuro ? textoClaro : COLOR_TEXTO_DARK);
             } else if (componente instanceof JTextField field) {
                 field.setBackground(temaOscuro ? new Color(30, 41, 59) : Color.WHITE);
                 field.setForeground(temaOscuro ? Color.WHITE : Color.BLACK);
                 field.setCaretColor(temaOscuro ? Color.WHITE : Color.BLACK);
             } else if (componente instanceof JTextArea area) {
-                area.setBackground(temaOscuro ? new Color(15, 23, 42) : new Color(255, 255, 255));
+                area.setBackground(temaOscuro ? new Color(15, 23, 42) : Color.WHITE);
                 area.setForeground(temaOscuro ? new Color(236, 253, 245) : Color.BLACK);
             } else if (componente instanceof JComboBox<?> combo) {
-                combo.setBackground(temaOscuro ? new Color(30, 41, 59) : Color.WHITE);
-                combo.setForeground(temaOscuro ? Color.WHITE : Color.BLACK);
+                aplicarEstiloCombo(combo);
             } else if (componente instanceof JTable table) {
                 table.setBackground(temaOscuro ? new Color(51, 65, 85) : Color.WHITE);
-                table.setForeground(temaOscuro ? Color.WHITE : Color.BLACK);
+                table.setForeground(temaOscuro ? Color.WHITE : COLOR_TEXTO_DARK);
                 table.setSelectionBackground(temaOscuro ? new Color(59, 130, 246) : new Color(219, 234, 254));
                 table.setSelectionForeground(temaOscuro ? Color.WHITE : Color.BLACK);
                 table.setGridColor(temaOscuro ? new Color(71, 85, 105) : COLOR_BORDE);
+                JTableHeader header = table.getTableHeader();
+                header.setBackground(temaOscuro ? new Color(30, 41, 59) : COLOR_TEXTO_DARK);
+                header.setForeground(Color.WHITE);
             } else if (componente instanceof JScrollPane scroll) {
                 scroll.getViewport().setBackground(temaOscuro ? new Color(51, 65, 85) : Color.WHITE);
                 scroll.setBackground(temaOscuro ? new Color(51, 65, 85) : Color.WHITE);
             } else if (componente instanceof JButton button) {
                 if (button != btnCambiarTema && button != botonNavActivo) {
-                    button.setBackground(temaOscuro ? new Color(71, 85, 105) : button.getBackground());
-                    button.setForeground(temaOscuro ? Color.WHITE : button.getForeground());
+                    button.setBackground(temaOscuro ? new Color(71, 85, 105) : colorOriginal(button, "tema.background"));
+                    button.setForeground(temaOscuro ? Color.WHITE : colorOriginal(button, "tema.foreground"));
                 }
             }
+
+            if (componente instanceof Container contenedorHijo && !(componente instanceof JPanel)) {
+                aplicarTemaRecursivo(contenedorHijo, fondoTarjeta, textoClaro, textoSuave, panelOscuro);
+            }
         }
+    }
+
+    private void guardarColoresOriginales(JComponent componente) {
+        if (componente.getClientProperty("tema.background") == null) {
+            componente.putClientProperty("tema.background", componente.getBackground());
+            componente.putClientProperty("tema.foreground", componente.getForeground());
+            componente.putClientProperty("tema.opaque", componente.isOpaque());
+        }
+    }
+
+    private Color colorOriginal(JComponent componente, String propiedad) {
+        return (Color) componente.getClientProperty(propiedad);
+    }
+
+    private boolean opacidadOriginal(JComponent componente) {
+        return Boolean.TRUE.equals(componente.getClientProperty("tema.opaque"));
+    }
+
+    private void aplicarEstiloCombo(JComboBox<?> combo) {
+        Color fondo = temaOscuro ? new Color(30, 41, 59) : Color.WHITE;
+        Color texto = temaOscuro ? Color.WHITE : COLOR_TEXTO_DARK;
+
+        combo.setBackground(fondo);
+        combo.setForeground(texto);
+        combo.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> lista, Object valor, int indice,
+                    boolean seleccionado, boolean tieneFoco) {
+                JLabel etiqueta = (JLabel) super.getListCellRendererComponent(
+                        lista, valor, indice, seleccionado, tieneFoco);
+                etiqueta.setBackground(seleccionado && temaOscuro ? new Color(59, 130, 246) : fondo);
+                etiqueta.setForeground(seleccionado && temaOscuro ? Color.WHITE : texto);
+                return etiqueta;
+            }
+        });
+        combo.setUI(new BasicComboBoxUI() {
+            @Override
+            protected JButton createArrowButton() {
+                return new BasicArrowButton(
+                    SwingConstants.SOUTH, fondo, fondo, texto, fondo);
+            }
+        });
     }
 
     private CompoundBorder crearBordeSeccion(String titulo, int tamanoFuente) {
