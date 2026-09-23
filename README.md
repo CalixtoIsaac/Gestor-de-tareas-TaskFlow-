@@ -64,31 +64,28 @@ Controlador (com.example.Controlador): Conecta los eventos de la Vista con el Mo
 ## Estructura del proyecto
 
 ```
-demo/
-├── pom.xml
-├── schema.sql                             # Script SQL de creación/inicialización de la base de datos
-└── src/main/java/com/example/
-    ├── GestionTareasApp.java              # Punto de entrada (main)
-    ├── Controlador/
-    │   └── GestionTareasController.java
-    ├── Modelo/
-    │   ├── Tarea.java
-    │   ├── Empleado.java
-    │   ├── PilaTareas.java
-    │   ├── ColaTareas.java
-    │   ├── ListaTareas.java
-    │   ├── ColaPrioridadTareas.java
-    │   ├── ArbolEmpleados.java
-    │   ├── ProcesadorRecursivo.java
-    │   ├── GestorTablasHashYAlgoritmos.java
-    │   └── GrafoDependencias.java
-    ├── Persistencia/                      # Capa de conexión y DAO para Base de Datos
-    │   ├── ConexionBD.java
-    │   ├── TareaRepositorio.java
-    │   └── EmpleadoRepositorio.java
-    └── Vista/
-        ├── GestionTareasView.java
-        └── SelectorFechaPanel.java        # Selector de fecha: calendario + texto validado (yyyy-MM-dd)
+com.example
+├── GestionTareasApp.java                     (Lanzador principal)
+├── Controlador/
+│   └── GestionTareasController.java         (Lógica de control y listeners)
+├── Modelo/
+│   ├── Tarea.java
+│   ├── Empleado.java
+│   ├── PilaTareas.java
+│   ├── ColaTareas.java
+│   ├── ListaTareas.java
+│   ├── ColaPrioridadTareas.java
+│   ├── ArbolEmpleados.java
+│   ├── ProcesadorRecursivo.java
+│   ├── GestorTablasHashYAlgoritmos.java
+│   └── GrafoDependencias.java
+├── Vista/
+│   ├── GestionTareasView.java               (Interfaz gráfica Swing)
+│   └── SelectorFechaPanel.java              (Selector de fecha: calendario + texto validado)
+└── persistencia/
+    ├── ConexionBD.java
+    ├── EmpleadoRepositorio.java
+    └── TareaRepositorio.java
 ```
 
 ## Requisitos
