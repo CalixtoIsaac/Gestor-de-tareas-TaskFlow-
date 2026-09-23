@@ -11,6 +11,7 @@ import javax.swing.plaf.basic.BasicArrowButton;
 import javax.swing.plaf.basic.BasicComboBoxUI;
 import java.awt.*;
 import java.awt.event.*;
+import java.util.Map;
 
 
 public class GestionTareasView extends JFrame {
@@ -47,7 +48,9 @@ public class GestionTareasView extends JFrame {
     private JButton btnNavPrioridad, btnNavEmpleados, btnNavRecursivo, btnNavAlgoritmos, btnNavGrafo, btnNavTodas;
 
     // Métricas Dashboard
-    private JLabel lblPilaActivas, lblPilaResueltas, lblColaActivas, lblColaResueltas, lblListaActivas, lblListaResueltas;
+    private JLabel lblPilaMetricas, lblColaMetricas, lblListaMetricas;
+    private JPanel panelHorasDepartamentos;
+    private DashboardChartPanel panelGraficaDepartamentos;
 
     // Componentes del Formulario de Registro
     private JTextField txtTitulo, txtTiempoEstimado;
@@ -282,7 +285,7 @@ public class GestionTareasView extends JFrame {
     }
 
     private JPanel crearCardDashboard() {
-        JPanel panel = new JPanel(new BorderLayout(15, 15));
+        JPanel panel = new JPanel(new BorderLayout(12, 12));
         panel.setOpaque(false);
 
         JLabel lblTitulo = new JLabel("Resumen Administrativo del Sistema");
@@ -290,24 +293,46 @@ public class GestionTareasView extends JFrame {
         lblTitulo.setForeground(COLOR_TEXTO_DARK);
         panel.add(lblTitulo, BorderLayout.NORTH);
 
-        JPanel panelGridCards = new JPanel(new GridLayout(3, 2, 15, 15));
+        JPanel contenido = new JPanel();
+        contenido.setOpaque(false);
+        contenido.setLayout(new BoxLayout(contenido, BoxLayout.Y_AXIS));
+
+        JPanel panelGridCards = new JPanel(new GridLayout(1, 3, 12, 12));
         panelGridCards.setOpaque(false);
+        panelGridCards.setPreferredSize(new Dimension(0, 102));
+        panelGridCards.setMaximumSize(new Dimension(Integer.MAX_VALUE, 102));
 
-        lblPilaActivas = new JLabel("0", SwingConstants.CENTER);
-        lblPilaResueltas = new JLabel("0", SwingConstants.CENTER);
-        lblColaActivas = new JLabel("0", SwingConstants.CENTER);
-        lblColaResueltas = new JLabel("0", SwingConstants.CENTER);
-        lblListaActivas = new JLabel("0", SwingConstants.CENTER);
-        lblListaResueltas = new JLabel("0", SwingConstants.CENTER);
+        lblPilaMetricas = new JLabel("Pendientes: 0  |  Resueltas: 0", SwingConstants.CENTER);
+        lblColaMetricas = new JLabel("Pendientes: 0  |  Resueltas: 0", SwingConstants.CENTER);
+        lblListaMetricas = new JLabel("Pendientes: 0  |  Resueltas: 0", SwingConstants.CENTER);
 
-        panelGridCards.add(crearTarjetaMetrica("Tareas Urgentes (Pila) - Pendientes", lblPilaActivas, COLOR_ROJO));
-        panelGridCards.add(crearTarjetaMetrica("Tareas Urgentes (Pila) - Resueltas", lblPilaResueltas, COLOR_VERDE));
-        panelGridCards.add(crearTarjetaMetrica("Tareas Programadas (Cola) - Pendientes", lblColaActivas, COLOR_PRIMARIO));
-        panelGridCards.add(crearTarjetaMetrica("Tareas Programadas (Cola) - Resueltas", lblColaResueltas, COLOR_VERDE));
-        panelGridCards.add(crearTarjetaMetrica("Tareas Generales (Lista) - Pendientes", lblListaActivas, COLOR_NEUTRO));
-        panelGridCards.add(crearTarjetaMetrica("Tareas Generales (Lista) - Resueltas", lblListaResueltas, COLOR_VERDE));
+        panelGridCards.add(crearTarjetaMetrica("PILA · Tareas urgentes", lblPilaMetricas, new Color(30, 64, 175)));
+        panelGridCards.add(crearTarjetaMetrica("COLA · Tareas programadas", lblColaMetricas, new Color(37, 99, 235)));
+        panelGridCards.add(crearTarjetaMetrica("LISTA · Tareas generales", lblListaMetricas, new Color(91, 33, 182)));
 
-        panel.add(panelGridCards, BorderLayout.CENTER);
+        contenido.add(panelGridCards);
+        contenido.add(Box.createVerticalStrut(10));
+
+        panelHorasDepartamentos = new JPanel(new GridLayout(1, 5, 8, 0));
+        panelHorasDepartamentos.setOpaque(false);
+        panelHorasDepartamentos.setPreferredSize(new Dimension(0, 68));
+        panelHorasDepartamentos.setMaximumSize(new Dimension(Integer.MAX_VALUE, 68));
+        TitledBorder bordeHoras = BorderFactory.createTitledBorder(
+            BorderFactory.createEmptyBorder(4, 0, 0, 0),
+            "Horas estimadas por departamento",
+            TitledBorder.LEFT, TitledBorder.TOP,
+            new Font("Segoe UI", Font.BOLD, 13), COLOR_TEXTO_DARK);
+        panelHorasDepartamentos.setBorder(bordeHoras);
+        contenido.add(panelHorasDepartamentos);
+        contenido.add(Box.createVerticalStrut(10));
+
+        panelGraficaDepartamentos = new DashboardChartPanel();
+        panelGraficaDepartamentos.setPreferredSize(new Dimension(0, 260));
+        panelGraficaDepartamentos.setMinimumSize(new Dimension(0, 220));
+        panelGraficaDepartamentos.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(COLOR_BORDE), new EmptyBorder(8, 8, 4, 8)));
+        contenido.add(panelGraficaDepartamentos);
+        panel.add(contenido, BorderLayout.CENTER);
         return panel;
     }
 
@@ -323,11 +348,28 @@ public class GestionTareasView extends JFrame {
         lblTit.setFont(new Font("Segoe UI", Font.BOLD, 12));
         lblTit.setForeground(COLOR_TEXTO_DARK);
 
-        lblValor.setFont(new Font("Segoe UI", Font.BOLD, 30));
+        lblValor.setFont(new Font("Segoe UI", Font.BOLD, 16));
         lblValor.setForeground(COLOR_TEXTO_DARK);
 
         card.add(lblTit, BorderLayout.NORTH);
         card.add(lblValor, BorderLayout.CENTER);
+        return card;
+    }
+
+    private JPanel crearMiniTarjetaDepartamento(String departamento, int horas, Color acento) {
+        JPanel card = new JPanel(new BorderLayout(2, 2));
+        card.setBackground(COLOR_TARJETA);
+        card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 3, 0, acento),
+                new EmptyBorder(5, 7, 5, 7)));
+        JLabel nombre = new JLabel(departamento, SwingConstants.CENTER);
+        nombre.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        nombre.setForeground(COLOR_TEXTO_DARK);
+        JLabel valor = new JLabel(horas + " h", SwingConstants.CENTER);
+        valor.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        valor.setForeground(acento);
+        card.add(nombre, BorderLayout.NORTH);
+        card.add(valor, BorderLayout.CENTER);
         return card;
     }
 
@@ -1004,10 +1046,85 @@ public class GestionTareasView extends JFrame {
     public void setResultadoRecursivo(String texto) { areaResultadoDistribuicion.setText(texto); }
     public void setOrdenTopologico(String texto) { areaOrdenTopologico.setText(texto); }
 
-    public void actualizarMetricas(int pilaAct, int pilaRes, int colaAct, int colaRes, int listaAct, int listaRes) {
-        lblPilaActivas.setText(String.valueOf(pilaAct)); lblPilaResueltas.setText(String.valueOf(pilaRes));
-        lblColaActivas.setText(String.valueOf(colaAct)); lblColaResueltas.setText(String.valueOf(colaRes));
-        lblListaActivas.setText(String.valueOf(listaAct)); lblListaResueltas.setText(String.valueOf(listaRes));
+    public void actualizarDashboard(int pilaAct, int pilaRes, int colaAct, int colaRes,
+                                    int listaAct, int listaRes, Map<String, Integer> horas,
+                                    Map<String, Integer> tareas) {
+        lblPilaMetricas.setText("Pendientes: " + pilaAct + "  |  Resueltas: " + pilaRes);
+        lblColaMetricas.setText("Pendientes: " + colaAct + "  |  Resueltas: " + colaRes);
+        lblListaMetricas.setText("Pendientes: " + listaAct + "  |  Resueltas: " + listaRes);
+
+        String[] departamentos = {"Sistemas", "Ventas", "RRHH", "Finanzas", "Logística"};
+        String[] claves = {"Sistemas", "Ventas", "Recursos Humanos", "Finanzas", "Logística"};
+        Color[] colores = {new Color(30, 64, 175), new Color(37, 99, 235),
+                new Color(79, 70, 229), new Color(67, 56, 202), new Color(91, 33, 182)};
+        panelHorasDepartamentos.removeAll();
+        int[] horasGrafica = new int[departamentos.length];
+        int[] tareasGrafica = new int[departamentos.length];
+        for (int i = 0; i < departamentos.length; i++) {
+            horasGrafica[i] = horas.getOrDefault(claves[i], 0);
+            tareasGrafica[i] = tareas.getOrDefault(claves[i], 0);
+            panelHorasDepartamentos.add(crearMiniTarjetaDepartamento(departamentos[i], horasGrafica[i], colores[i]));
+        }
+        panelGraficaDepartamentos.actualizarDatos(departamentos, tareasGrafica, colores);
+        panelHorasDepartamentos.revalidate();
+        panelHorasDepartamentos.repaint();
+    }
+
+    private static class DashboardChartPanel extends JPanel {
+        private String[] departamentos = new String[0];
+        private int[] tareas = new int[0];
+        private Color[] colores = new Color[0];
+
+        void actualizarDatos(String[] departamentos, int[] tareas, Color[] colores) {
+            this.departamentos = departamentos;
+            this.tareas = tareas;
+            this.colores = colores;
+            repaint();
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            super.paintComponent(graphics);
+            if (departamentos.length == 0) return;
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int left = 42, right = 15, top = 24, bottom = 42;
+            int chartWidth = Math.max(1, getWidth() - left - right);
+            int chartHeight = Math.max(1, getHeight() - top - bottom);
+            int max = 1;
+            for (int tarea : tareas) max = Math.max(max, tarea);
+            int step = Math.max(1, (int) Math.ceil(max / 4.0));
+            int maxAxis = step * 4;
+
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+            g.setColor(new Color(148, 163, 184));
+            for (int i = 0; i <= 4; i++) {
+                int y = top + chartHeight - (i * chartHeight / 4);
+                g.drawLine(left, y, left + chartWidth, y);
+                String etiqueta = String.valueOf(i * step);
+                g.drawString(etiqueta, left - g.getFontMetrics().stringWidth(etiqueta) - 6, y + 4);
+            }
+
+            int slot = chartWidth / departamentos.length;
+            int barWidth = Math.max(18, Math.min(52, slot - 24));
+            for (int i = 0; i < departamentos.length; i++) {
+                int barHeight = tareas[i] * chartHeight / maxAxis;
+                int x = left + i * slot + (slot - barWidth) / 2;
+                int y = top + chartHeight - barHeight;
+                GradientPaint gradiente = new GradientPaint(x, y, colores[i].brighter(), x, y + Math.max(1, barHeight), colores[i]);
+                g.setPaint(gradiente);
+                g.fillRoundRect(x, y, barWidth, Math.max(2, barHeight), 8, 8);
+                g.setColor(COLOR_TEXTO_DARK);
+                String valor = String.valueOf(tareas[i]);
+                g.drawString(valor, x + (barWidth - g.getFontMetrics().stringWidth(valor)) / 2, Math.max(top - 5, y - 6));
+                g.setColor(colores[i]);
+                g.fillOval(x + barWidth / 2 - 4, top + chartHeight + 13, 8, 8);
+                g.setColor(COLOR_TEXTO_DARK);
+                String nombre = departamentos[i];
+                g.drawString(nombre, x + (barWidth - g.getFontMetrics().stringWidth(nombre)) / 2, top + chartHeight + 34);
+            }
+            g.dispose();
+        }
     }
 
     public void logGUI(String mensaje) {

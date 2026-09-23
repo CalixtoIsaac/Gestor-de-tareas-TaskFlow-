@@ -1,8 +1,8 @@
 package com.example;
 
-// ==========================================
+// ==========================================================
 // IMPORTS
-// ==========================================
+// ==========================================================
 import javax.swing.SwingUtilities;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;

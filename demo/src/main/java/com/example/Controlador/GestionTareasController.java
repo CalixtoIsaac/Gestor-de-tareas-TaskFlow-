@@ -455,9 +455,22 @@ public class GestionTareasController {
         vista.getModeloPrioridad().setRowCount(0);
         for (Tarea t : colaPrioridad.obtenerTareasOrdenadas()) vista.getModeloPrioridad().addRow(new Object[]{t.getId(), t.getTitulo(), t.getDepartamento(), t.getUrgencia(), t.getTiempoEstimado(), t.getFechaEntrega()});
 
+        List<Tarea> todas = obtenerTodasLasTareas();
         vista.getModeloTodas().setRowCount(0);
-        for (Tarea t : obtenerTodasLasTareas()) vista.getModeloTodas().addRow(new Object[]{t.getId(), t.getTitulo(), t.getDepartamento(), t.getUrgencia(), t.getTipoEstructura()});
+        for (Tarea t : todas) vista.getModeloTodas().addRow(new Object[]{t.getId(), t.getTitulo(), t.getDepartamento(), t.getUrgencia(), t.getTipoEstructura()});
 
-        vista.actualizarMetricas(pilaUrgentes.getPila().size(), resueltasPila, colaProgramadas.getCola().size(), resueltasCola, listaGeneral.getLista().size(), resueltasLista);
+        Map<String, Integer> horasPorDepartamento = new LinkedHashMap<>();
+        Map<String, Integer> tareasPorDepartamento = new LinkedHashMap<>();
+        for (Tarea tarea : todas) {
+            String departamento = tarea.getDepartamento();
+            if (departamento == null) continue;
+            horasPorDepartamento.merge(departamento, tarea.getTiempoEstimado(), Integer::sum);
+            tareasPorDepartamento.merge(departamento, 1, Integer::sum);
+        }
+
+        vista.actualizarDashboard(pilaUrgentes.getPila().size(), resueltasPila,
+                colaProgramadas.getCola().size(), resueltasCola,
+                listaGeneral.getLista().size(), resueltasLista,
+                horasPorDepartamento, tareasPorDepartamento);
     }
 }
