@@ -4,8 +4,8 @@ Aplicación de escritorio en **Java Swing** que simula un sistema de gestión de
 
 Proyecto Final — materia de Estructuras de Datos.
 
-<img width="1164" height="811" alt="image" src="https://github.com/user-attachments/assets/8284a7be-fa32-4a63-9ec4-4a7da34cf56d" />
-
+<img width="1165" height="809" alt="image" src="https://github.com/user-attachments/assets/f7e279e5-e596-4492-90c6-2bde3f20ed0b" />
+<img width="1162" height="807" alt="image" src="https://github.com/user-attachments/assets/b33443b7-dcd9-4499-af0d-97bb6b96c9ad" />
 
 ---
 
