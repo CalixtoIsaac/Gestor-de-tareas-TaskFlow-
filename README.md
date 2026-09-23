@@ -51,17 +51,22 @@ La interfaz está redactada en lenguaje orientado al usuario final (por ejemplo,
 
 ## Arquitectura
 
-El proyecto sigue el patrón **Modelo–Vista–Controlador (MVC)**:
+El proyecto sigue el patrón Modelo–Vista–Controlador (MVC) extendido con una capa de Persistencia / DAO:
 
-- **Modelo** (`com.example.Modelo`): las estructuras de datos y la lógica de negocio pura, sin ninguna dependencia de Swing.
-- **Vista** (`com.example.Vista`): la interfaz gráfica. No contiene lógica de negocio; solo expone getters/setters de sus componentes.
-- **Controlador** (`com.example.Controlador`): conecta los eventos de la Vista con las operaciones del Modelo y mantiene sincronizadas las tablas y métricas en pantalla.
+Modelo (com.example.Modelo): Las estructuras de datos y la lógica de negocio pura, sin dependencia de la interfaz gráfica.
+
+Persistencia / DAO (com.example.Persistencia): Manejo de conexiones JDBC y operaciones CRUD para almacenar y recuperar información desde la Base de Datos.
+
+Vista (com.example.Vista): La interfaz gráfica (Swing).
+
+Controlador (com.example.Controlador): Conecta los eventos de la Vista con el Modelo y la Base de Datos, manteniendo sincronizadas las tablas y métricas en pantalla.
 
 ## Estructura del proyecto
 
 ```
 demo/
 ├── pom.xml
+├── schema.sql                             # Script SQL de creación/inicialización de la base de datos
 └── src/main/java/com/example/
     ├── GestionTareasApp.java              # Punto de entrada (main)
     ├── Controlador/
@@ -77,6 +82,10 @@ demo/
     │   ├── ProcesadorRecursivo.java
     │   ├── GestorTablasHashYAlgoritmos.java
     │   └── GrafoDependencias.java
+    ├── Persistencia/                      # Capa de conexión y DAO para Base de Datos
+    │   ├── ConexionBD.java
+    │   ├── TareaRepositorio.java
+    │   └── EmpleadoRepositorio.java
     └── Vista/
         ├── GestionTareasView.java
         └── SelectorFechaPanel.java        # Selector de fecha: calendario + texto validado (yyyy-MM-dd)
@@ -106,7 +115,7 @@ java -cp target/classes com.example.GestionTareasApp
 
 ## Guía rápida de uso
 
-1. Toda tarea se crea desde **Registrar Tarea**, eligiendo a qué estructura se asigna (Pila, Cola, Lista o Cola de Prioridad) y, opcionalmente, su fecha de entrega (texto en formato `yyyy-MM-dd` o mediante el selector de calendario). Si se deja vacía, se usa la fecha del día.
+1. Toda tarea se crea desde **Registrar Tarea**, eligiendo a qué estructura se asigna (Pila, Cola, Lista o Cola de Prioridad) y, opcionalmente, su fecha de entrega (texto en formato `yyyy-MM-dd` o mediante el selector de calendario). Si se deja vacía, se usa la fecha del día, Al crearse, la información se guarda de forma persistente.
 2. Cada estructura tiene su propia pestaña (**Pilas**, **Colas**, **Listas**, **Cola Prioridad**) con las operaciones correspondientes (procesar, consultar, eliminar, buscar).
 3. Todo empleado debe registrarse desde **Empleados** antes de usarse en búsquedas o en la distribución de tareas.
 4. **Cálculos y Distribución** calcula el tiempo total estimado y reparte las tareas entre los empleados registrados.
@@ -125,7 +134,7 @@ java -cp target/classes com.example.GestionTareasApp
 - Dividir `GestionTareasView` en componentes más pequeños por sección (un archivo por pestaña) para mejorar la mantenibilidad.
 - Agregar un resumen de tiempo estimado por departamento en el panel principal.
 - Adoptar una estructura auto-balanceada (AVL/Red-Black) para el árbol de empleados.
-- Incorporar persistencia (archivo o base de datos).
+- Implementar migraciones automáticas de base de datos (Flyway / Liquibase).
 
 ## Documentación adicional
 
