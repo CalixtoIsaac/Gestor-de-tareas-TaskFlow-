@@ -10,5 +10,8 @@ D:\SEMESTRE3_COMPLETANDO\ESTRUCTURAS_DE_DATOS\Proyecto_Final_Estructura_De_Datos
 D:\SEMESTRE3_COMPLETANDO\ESTRUCTURAS_DE_DATOS\Proyecto_Final_Estructura_De_Datos\demo\src\main\java\com\example\Modelo\PilaTareas.java
 D:\SEMESTRE3_COMPLETANDO\ESTRUCTURAS_DE_DATOS\Proyecto_Final_Estructura_De_Datos\demo\src\main\java\com\example\Modelo\ProcesadorRecursivo.java
 D:\SEMESTRE3_COMPLETANDO\ESTRUCTURAS_DE_DATOS\Proyecto_Final_Estructura_De_Datos\demo\src\main\java\com\example\Modelo\Tarea.java
+D:\SEMESTRE3_COMPLETANDO\ESTRUCTURAS_DE_DATOS\Proyecto_Final_Estructura_De_Datos\demo\src\main\java\com\example\persistencia\ConexionBD.java
+D:\SEMESTRE3_COMPLETANDO\ESTRUCTURAS_DE_DATOS\Proyecto_Final_Estructura_De_Datos\demo\src\main\java\com\example\persistencia\EmpleadoRepositorio.java
+D:\SEMESTRE3_COMPLETANDO\ESTRUCTURAS_DE_DATOS\Proyecto_Final_Estructura_De_Datos\demo\src\main\java\com\example\persistencia\TareaRepositorio.java
 D:\SEMESTRE3_COMPLETANDO\ESTRUCTURAS_DE_DATOS\Proyecto_Final_Estructura_De_Datos\demo\src\main\java\com\example\Vista\GestionTareasView.java
 D:\SEMESTRE3_COMPLETANDO\ESTRUCTURAS_DE_DATOS\Proyecto_Final_Estructura_De_Datos\demo\src\main\java\com\example\Vista\SelectorFechaPanel.java

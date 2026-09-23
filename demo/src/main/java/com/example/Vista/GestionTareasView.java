@@ -10,6 +10,8 @@ import javax.swing.table.JTableHeader;
 import javax.swing.plaf.basic.BasicArrowButton;
 import javax.swing.plaf.basic.BasicComboBoxUI;
 import java.awt.*;
+import java.awt.event.*;
+
 
 public class GestionTareasView extends JFrame {
 
@@ -32,6 +34,12 @@ public class GestionTareasView extends JFrame {
     private JButton botonNavActivo;
     private boolean temaOscuro = false;
     private JButton btnCambiarTema;
+
+    // Control de Ventana y Pantalla Completa
+    private boolean esVentanaCompleta = false;
+    private Dimension dimensionesFlotante;
+    private Point posicionFlotante;
+    private JButton btnModoVentana;
 
     // Botones del Menú Lateral
     private JButton btnMenuToggle;
@@ -81,10 +89,8 @@ public class GestionTareasView extends JFrame {
 
     public GestionTareasView() {
         setTitle("Sistema Empresarial Avanzado de Gestión de Tareas - Dashboard");
-        setSize(1180, 820);
-        setMinimumSize(new Dimension(1000, 720));
+        calcularTamanoInicial();
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setLocationRelativeTo(null);
 
         JPanel panelRaiz = new JPanel(new BorderLayout());
         panelRaiz.setBackground(COLOR_FONDO_APP);
@@ -93,13 +99,15 @@ public class GestionTareasView extends JFrame {
         initHeader(panelRaiz);
         initSidebar(panelRaiz);
         initMainCards(panelRaiz);
+        configurarListenersVentana();
+        configurarAtajosTeclado();
         aplicarTemaGeneral();
     }
 
     private void initHeader(JPanel panelRaiz) {
         JPanel header = new JPanel(new BorderLayout());
         header.setBackground(COLOR_SIDEBAR_BG);
-        header.setPreferredSize(new Dimension(getWidth(), 50));
+        header.setPreferredSize(new Dimension(0, 52));
         header.setBorder(new EmptyBorder(5, 10, 5, 20));
 
         btnMenuToggle = new JButton(" ||| ");
@@ -115,8 +123,39 @@ public class GestionTareasView extends JFrame {
         lblTituloApp.setFont(new Font("Segoe UI", Font.BOLD, 14));
         lblTituloApp.setForeground(Color.WHITE);
 
+        // Panel de acciones en la cabecera (Ventana Completa / Flotante)
+        JPanel panelHeaderAcciones = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 5));
+        panelHeaderAcciones.setOpaque(false);
+
+        btnModoVentana = new JButton("🗖 Pantalla Completa");
+        btnModoVentana.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btnModoVentana.setForeground(Color.WHITE);
+        btnModoVentana.setBackground(new Color(51, 65, 85));
+        btnModoVentana.setFocusPainted(false);
+        btnModoVentana.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btnModoVentana.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(100, 116, 139), 1),
+                BorderFactory.createEmptyBorder(6, 14, 6, 14)
+        ));
+        btnModoVentana.setToolTipText("Ajustar automáticamente a pantalla completa (F11)");
+        btnModoVentana.addActionListener(e -> alternarModoVentana());
+        btnModoVentana.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                btnModoVentana.setBackground(temaOscuro ? new Color(59, 130, 246) : new Color(71, 85, 105));
+            }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                actualizarColorBotonVentana();
+            }
+        });
+
+        panelHeaderAcciones.add(btnModoVentana);
+
         header.add(btnMenuToggle, BorderLayout.WEST);
         header.add(lblTituloApp, BorderLayout.CENTER);
+        header.add(panelHeaderAcciones, BorderLayout.EAST);
         panelRaiz.add(header, BorderLayout.NORTH);
     }
 
@@ -292,7 +331,7 @@ public class GestionTareasView extends JFrame {
         return card;
     }
 
-    private JPanel crearCardRegistro() {
+    private JComponent crearCardRegistro() {
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBackground(COLOR_TARJETA);
         panel.setBorder(crearBordeSeccion(" Registrar Nueva Tarea ", 16));
@@ -373,7 +412,12 @@ public class GestionTareasView extends JFrame {
         panel.add(btnAgregar, gbc);
         gbc.gridwidth = 1; gbc.anchor = GridBagConstraints.LINE_START;
 
-        return panel;
+        JScrollPane scrollRegistro = new JScrollPane(panel);
+        scrollRegistro.setBorder(null);
+        scrollRegistro.setOpaque(false);
+        scrollRegistro.getViewport().setOpaque(false);
+        scrollRegistro.getVerticalScrollBar().setUnitIncrement(16);
+        return scrollRegistro;
     }
 
     private JPanel crearCardPila() {
@@ -653,6 +697,10 @@ public class GestionTareasView extends JFrame {
             btnCambiarTema.setForeground(Color.WHITE);
             btnCambiarTema.setBackground(temaOscuro ? new Color(59, 130, 246) : new Color(15, 23, 42));
         }
+
+        if (btnModoVentana != null) {
+            actualizarColorBotonVentana();
+        }
     }
 
     private void aplicarTemaRecursivo(Container contenedor, Color fondoTarjeta, Color textoClaro, Color textoSuave, Color panelOscuro) {
@@ -699,7 +747,7 @@ public class GestionTareasView extends JFrame {
                 scroll.getViewport().setBackground(temaOscuro ? new Color(51, 65, 85) : Color.WHITE);
                 scroll.setBackground(temaOscuro ? new Color(51, 65, 85) : Color.WHITE);
             } else if (componente instanceof JButton button) {
-                if (button != btnCambiarTema && button != botonNavActivo) {
+                if (button != btnCambiarTema && button != botonNavActivo && button != btnModoVentana) {
                     button.setBackground(temaOscuro ? new Color(71, 85, 105) : colorOriginal(button, "tema.background"));
                     button.setForeground(temaOscuro ? Color.WHITE : colorOriginal(button, "tema.foreground"));
                 }
@@ -768,6 +816,136 @@ public class GestionTareasView extends JFrame {
         ));
     }
 
+    // =========================================================================
+    // Métodos de Gestión de Pantalla Completa y Ventana Flotante
+    // =========================================================================
+
+    private void calcularTamanoInicial() {
+        Rectangle maxBounds = GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds();
+        int screenWidth = maxBounds.width;
+        int screenHeight = maxBounds.height;
+
+        int targetWidth = 1180;
+        int targetHeight = 820;
+
+        if (targetWidth >= screenWidth || targetHeight >= screenHeight) {
+            targetWidth = Math.max(900, (int) (screenWidth * 0.94));
+            targetHeight = Math.max(650, (int) (screenHeight * 0.94));
+            setMinimumSize(new Dimension(Math.min(880, screenWidth), Math.min(620, screenHeight)));
+        } else {
+            setMinimumSize(new Dimension(980, 680));
+        }
+
+        dimensionesFlotante = new Dimension(targetWidth, targetHeight);
+        setSize(dimensionesFlotante);
+        setLocationRelativeTo(null);
+        posicionFlotante = getLocation();
+    }
+
+    private void configurarListenersVentana() {
+        addWindowStateListener(e -> {
+            int nuevoEstado = e.getNewState();
+            boolean maximizado = (nuevoEstado & Frame.MAXIMIZED_BOTH) == Frame.MAXIMIZED_BOTH;
+            actualizarEstadoBotonVentana(maximizado);
+        });
+
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                if (!esVentanaCompleta && (getExtendedState() & Frame.MAXIMIZED_BOTH) == 0) {
+                    dimensionesFlotante = getSize();
+                }
+            }
+
+            @Override
+            public void componentMoved(ComponentEvent e) {
+                if (!esVentanaCompleta && (getExtendedState() & Frame.MAXIMIZED_BOTH) == 0) {
+                    posicionFlotante = getLocation();
+                }
+            }
+        });
+    }
+
+    private void configurarAtajosTeclado() {
+        JRootPane rootPane = getRootPane();
+        InputMap inputMap = rootPane.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
+        ActionMap actionMap = rootPane.getActionMap();
+
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_F11, 0), "togglePantallaCompleta");
+        actionMap.put("togglePantallaCompleta", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                alternarModoVentana();
+            }
+        });
+
+        inputMap.put(KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), "salirPantallaCompleta");
+        actionMap.put("salirPantallaCompleta", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (esVentanaCompleta) {
+                    restaurarVentanaFlotante();
+                }
+            }
+        });
+    }
+
+    public void alternarModoVentana() {
+        if (esVentanaCompleta) {
+            restaurarVentanaFlotante();
+        } else {
+            activarVentanaCompleta();
+        }
+    }
+
+    public void activarVentanaCompleta() {
+        if ((getExtendedState() & Frame.MAXIMIZED_BOTH) == 0) {
+            dimensionesFlotante = getSize();
+            posicionFlotante = getLocation();
+        }
+        setExtendedState(Frame.MAXIMIZED_BOTH);
+        actualizarEstadoBotonVentana(true);
+        logGUI("[VENTANA] Modo Pantalla Completa activado. Adaptado automáticamente al tamaño de la pantalla.");
+    }
+
+    public void restaurarVentanaFlotante() {
+        setExtendedState(Frame.NORMAL);
+        if (dimensionesFlotante != null) {
+            setSize(dimensionesFlotante);
+        }
+        if (posicionFlotante != null) {
+            setLocation(posicionFlotante);
+        } else {
+            setLocationRelativeTo(null);
+        }
+        actualizarEstadoBotonVentana(false);
+        logGUI("[VENTANA] Modo Ventana Flotante restaurado.");
+    }
+
+    private void actualizarEstadoBotonVentana(boolean maximizado) {
+        this.esVentanaCompleta = maximizado;
+        if (btnModoVentana != null) {
+            if (maximizado) {
+                btnModoVentana.setText("🗗 Ventana Flotante");
+                btnModoVentana.setToolTipText("Restaurar a ventana flotante (F11 o Esc)");
+            } else {
+                btnModoVentana.setText("🗖 Pantalla Completa");
+                btnModoVentana.setToolTipText("Poner en ventana completa ajustada a la pantalla (F11)");
+            }
+        }
+    }
+
+    private void actualizarColorBotonVentana() {
+        if (btnModoVentana != null) {
+            btnModoVentana.setBackground(temaOscuro ? new Color(30, 41, 59) : new Color(51, 65, 85));
+            btnModoVentana.setForeground(Color.WHITE);
+            btnModoVentana.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(temaOscuro ? new Color(71, 85, 105) : new Color(100, 116, 139), 1),
+                    BorderFactory.createEmptyBorder(6, 14, 6, 14)
+            ));
+        }
+    }
+
     // Getters
     public String getTituloInput() { return txtTitulo.getText().trim(); }
     public void limpiarTituloInput() { txtTitulo.setText(""); }
@@ -820,6 +998,8 @@ public class GestionTareasView extends JFrame {
     public JButton getBtnBuscarBinaria() { return btnBuscarBinaria; }
     public JButton getBtnAgregarDependencia() { return btnAgregarDependencia; }
     public JButton getBtnCalcularOrdenTopologico() { return btnCalcularOrdenTopologico; }
+    public JButton getBtnModoVentana() { return btnModoVentana; }
+    public boolean isVentanaCompleta() { return esVentanaCompleta; }
 
     public void setResultadoRecursivo(String texto) { areaResultadoDistribuicion.setText(texto); }
     public void setOrdenTopologico(String texto) { areaOrdenTopologico.setText(texto); }
@@ -831,7 +1011,9 @@ public class GestionTareasView extends JFrame {
     }
 
     public void logGUI(String mensaje) {
-        areaConsolaGUI.append(mensaje + "\n");
-        areaConsolaGUI.setCaretPosition(areaConsolaGUI.getDocument().getLength());
+        if (areaConsolaGUI != null) {
+            areaConsolaGUI.append(mensaje + "\n");
+            areaConsolaGUI.setCaretPosition(areaConsolaGUI.getDocument().getLength());
+        }
     }
 }
