@@ -23,6 +23,7 @@ public class GestionTareasController {
     private GestorTablasHashYAlgoritmos gestorHashYAlgoritmos;
     private GrafoDependencias grafoDependencias;
     private List<Empleado> listaEmpleadosMemoria;
+    private List<Empleado> empleadosMostrados; // lo que hay en la tabla de Empleados (todos o filtro por depto)
     private TareaRepositorio tareaRepositorio;
     private EmpleadoRepositorio empleadoRepositorio;
 
@@ -39,6 +40,7 @@ public class GestionTareasController {
         this.gestorHashYAlgoritmos = new GestorTablasHashYAlgoritmos();
         this.grafoDependencias = new GrafoDependencias();
         this.listaEmpleadosMemoria = new ArrayList<>();
+        this.empleadosMostrados = listaEmpleadosMemoria;
 
         inicializarPersistencia();
         initControlador();
@@ -122,6 +124,10 @@ public class GestionTareasController {
         vista.getBtnBuscarEmpleadoId().addActionListener(e -> buscarEmpleadoBST());
         vista.getBtnListarEmpleadoDepto().addActionListener(e -> listarEmpleadosDeptoBST());
         vista.getBtnMostrarTodosEmpleados().addActionListener(e -> mostrarTodosLosEmpleados());
+        // Al seleccionar un empleado se despliega el detalle de sus tareas pendientes
+        vista.addSeleccionEmpleadoListener(e -> {
+            if (!e.getValueIsAdjusting()) mostrarPendientesEmpleadoSeleccionado();
+        });
 
         // Eventos Recursividad y Divide & Vencerás
         vista.getBtnCalcularTiempoRecursivo().addActionListener(e -> calcularTiempoRecursivo());
@@ -422,11 +428,71 @@ public class GestionTareasController {
         return todas;
     }
 
+    // ==========================================================
+    // TAREAS PENDIENTES POR EMPLEADO
+    // ==========================================================
+
+    /**
+     * Recorre TODAS las estructuras activas (Pila, Cola, Lista y Cola de Prioridad) y agrupa las
+     * tareas por el ID de su Responsable Directo. Las tareas "Sin Asignar" no se incluyen.
+     * Cada lista queda ordenada por fecha de entrega (más próxima primero) y luego por urgencia.
+     */
+    private Map<String, List<Tarea>> obtenerPendientesPorEmpleado() {
+        Map<String, List<Tarea>> pendientes = new HashMap<>();
+        for (Tarea t : obtenerTodasLasTareas()) {
+            if (t.tieneResponsable()) {
+                pendientes.computeIfAbsent(t.getResponsableDirecto().getId(), id -> new ArrayList<>()).add(t);
+            }
+        }
+        Comparator<Tarea> orden = Comparator.comparing(Tarea::getFechaEntrega)
+                .thenComparing(Comparator.comparingInt(Tarea::getUrgencia).reversed());
+        for (List<Tarea> lista : pendientes.values()) lista.sort(orden);
+        return pendientes;
+    }
+
+    private GestionTareasView.ResumenPendientes resumir(List<Tarea> tareas) {
+        if (tareas == null || tareas.isEmpty()) return new GestionTareasView.ResumenPendientes(0, 0, 0);
+        int vencidas = 0, criticas = 0;
+        for (Tarea t : tareas) {
+            if (t.estaVencida()) vencidas++;
+            if (t.getUrgencia() >= 5) criticas++;
+        }
+        return new GestionTareasView.ResumenPendientes(tareas.size(), vencidas, criticas);
+    }
+
     private void actualizarTablaEmpleados(List<Empleado> empleados) {
+        empleadosMostrados = empleados;
+        String seleccionPrevia = vista.getEmpleadoIdSeleccionado();
+        Map<String, List<Tarea>> pendientes = obtenerPendientesPorEmpleado();
+
         vista.getModeloEmpleados().setRowCount(0);
         for (Empleado e : empleados) {
-            vista.getModeloEmpleados().addRow(new Object[]{e.getId(), e.getNombre(), e.getDepartamento()});
+            vista.getModeloEmpleados().addRow(new Object[]{e.getId(), e.getNombre(), e.getDepartamento(),
+                    resumir(pendientes.get(e.getId()))});
         }
+        // Conserva el empleado seleccionado para que su detalle se mantenga actualizado
+        if (!vista.seleccionarEmpleado(seleccionPrevia)) {
+            mostrarPendientesEmpleadoSeleccionado();
+        }
+    }
+
+    // Llena la sub-tabla de detalle con las tareas pendientes del empleado seleccionado
+    private void mostrarPendientesEmpleadoSeleccionado() {
+        vista.getModeloPendientesEmpleado().setRowCount(0);
+        String id = vista.getEmpleadoIdSeleccionado();
+        Empleado empleado = id == null ? null : arbolEmpleados.buscarPorId(id);
+        if (empleado == null) {
+            vista.setTituloPendientes("Selecciona un empleado para ver sus tareas pendientes.");
+            return;
+        }
+        List<Tarea> tareas = obtenerPendientesPorEmpleado().getOrDefault(empleado.getId(), List.of());
+        for (Tarea t : tareas) {
+            vista.getModeloPendientesEmpleado().addRow(new Object[]{t.getId(), t.getTitulo(), t.getUrgencia(),
+                    t.getFechaEntrega(), t.getTipoEstructura()});
+        }
+        vista.setTituloPendientes(tareas.isEmpty()
+                ? empleado.getNombre() + " (" + empleado.getDepartamento() + ") no tiene tareas pendientes."
+                : "Tareas pendientes de " + empleado.getNombre() + " (" + empleado.getDepartamento() + "): " + tareas.size());
     }
 
     private void procesarPopPila() {
@@ -514,6 +580,9 @@ public class GestionTareasController {
             horasPorDepartamento.merge(departamento, tarea.getTiempoEstimado(), Integer::sum);
             tareasPorDepartamento.merge(departamento, 1, Integer::sum);
         }
+
+        // Los conteos de pendientes dependen de las tareas: se refrescan junto con las demás tablas
+        actualizarTablaEmpleados(empleadosMostrados);
 
         vista.actualizarDashboard(pilaUrgentes.getPila().size(), resueltasPila,
                 colaProgramadas.getCola().size(), resueltasCola,

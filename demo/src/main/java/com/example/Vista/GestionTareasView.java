@@ -14,6 +14,7 @@ import java.awt.event.*;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import javax.swing.event.ListSelectionListener;
 
 import com.example.Modelo.Empleado;
 import com.example.Modelo.Tarea;
@@ -87,6 +88,20 @@ public class GestionTareasView extends JFrame {
     private JTextField txtEmpleadoId, txtEmpleadoNombre, txtBuscarEmpleadoId;
     private JComboBox<String> cbEmpleadoDepto, cbFiltroDeptoEmp, cbFiltroDeptoLista;
     private JButton btnAgregarEmpleado, btnBuscarEmpleadoId, btnListarEmpleadoDepto, btnMostrarTodosEmpleados;
+    public static final String COL_PENDIENTES = "Tareas Pendientes";
+    private DefaultTableModel modeloPendientesEmpleado;
+    private JTable tablaPendientesEmpleado;
+    private JLabel lblTituloPendientes;
+    private JSplitPane splitEmpleados;
+    private JButton btnTogglePendientes;
+    private boolean detallePendientesVisible = true;
+
+    /** Resumen que se muestra como badges en la columna "Tareas Pendientes" de la tabla de empleados. */
+    public record ResumenPendientes(int total, int vencidas, int criticas) {
+        @Override public String toString() {
+            return total == 0 ? "Sin pendientes" : total + (total == 1 ? " pendiente" : " pendientes");
+        }
+    }
 
     // Componentes Recursividad & Divide y Vencerás
     private JButton btnCalcularTiempoRecursivo, btnDistribuirDivideVenceras;
@@ -597,13 +612,47 @@ public class GestionTareasView extends JFrame {
         panelAcciones.add(Box.createHorizontalStrut(10));
         panelAcciones.add(btnMostrarTodosEmpleados);
 
-        modeloEmpleados = new DefaultTableModel(new String[]{"ID", "Nombre Empleado", "Departamento"}, 0);
+        modeloEmpleados = new DefaultTableModel(new String[]{"ID", "Nombre Empleado", "Departamento", COL_PENDIENTES}, 0);
         tablaEmpleados = crearTablaEstilizada(modeloEmpleados);
+        tablaEmpleados.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        tablaEmpleados.getColumnModel().getColumn(3).setCellRenderer(new PendientesBadgeRenderer());
+        tablaEmpleados.getColumnModel().getColumn(3).setPreferredWidth(260);
+        tablaEmpleados.setToolTipText("Selecciona un empleado para ver el detalle de sus tareas pendientes");
         JScrollPane scrollTabla = new JScrollPane(tablaEmpleados);
         scrollTabla.setBorder(crearBordeSeccion(" Empleados Registrados ", 12));
 
+        // --- Sección desplegable: detalle de tareas pendientes del empleado seleccionado ---
+        modeloPendientesEmpleado = new DefaultTableModel(new String[]{"ID", "Título", "Urgencia", COL_FECHA_ENTREGA, "Estructura"}, 0);
+        tablaPendientesEmpleado = crearTablaEstilizada(modeloPendientesEmpleado);
+        tablaPendientesEmpleado.getColumnModel().getColumn(2).setCellRenderer(new UrgenciaBadgeRenderer());
+        tablaPendientesEmpleado.getColumnModel().getColumn(2).setPreferredWidth(110);
+        tablaPendientesEmpleado.getColumnModel().getColumn(1).setPreferredWidth(220);
+
+        lblTituloPendientes = new JLabel("Selecciona un empleado para ver sus tareas pendientes.");
+        lblTituloPendientes.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btnTogglePendientes = crearBotonEstilizado("▼ Ocultar detalle", COLOR_NEUTRO, Color.WHITE);
+        btnTogglePendientes.addActionListener(e -> alternarDetallePendientes());
+
+        JPanel cabeceraDetalle = new JPanel(new BorderLayout(8, 0)); cabeceraDetalle.setOpaque(false);
+        cabeceraDetalle.setBorder(new EmptyBorder(4, 4, 4, 4));
+        cabeceraDetalle.add(lblTituloPendientes, BorderLayout.CENTER);
+        cabeceraDetalle.add(btnTogglePendientes, BorderLayout.EAST);
+
+        JScrollPane scrollPendientes = new JScrollPane(tablaPendientesEmpleado);
+        scrollPendientes.setBorder(crearBordeSeccion(" Tareas Pendientes del Empleado ", 12));
+
+        JPanel panelDetalle = new JPanel(new BorderLayout(4, 4)); panelDetalle.setOpaque(false);
+        panelDetalle.add(cabeceraDetalle, BorderLayout.NORTH);
+        panelDetalle.add(scrollPendientes, BorderLayout.CENTER);
+
+        splitEmpleados = new JSplitPane(JSplitPane.VERTICAL_SPLIT, scrollTabla, panelDetalle);
+        splitEmpleados.setResizeWeight(0.55);
+        splitEmpleados.setBorder(null);
+        splitEmpleados.setOpaque(false);
+        splitEmpleados.setContinuousLayout(true);
+
         JPanel panelCentro = new JPanel(new BorderLayout(5, 5)); panelCentro.setOpaque(false);
-        panelCentro.add(panelAcciones, BorderLayout.NORTH); panelCentro.add(scrollTabla, BorderLayout.CENTER);
+        panelCentro.add(panelAcciones, BorderLayout.NORTH); panelCentro.add(splitEmpleados, BorderLayout.CENTER);
 
         panel.add(panelForm, BorderLayout.NORTH); panel.add(panelCentro, BorderLayout.CENTER);
         return panel;
@@ -777,6 +826,118 @@ public class GestionTareasView extends JFrame {
                 setForeground(table.getForeground());
             }
             return this;
+        }
+    }
+
+    // Expande / contrae la sección de detalle de tareas pendientes
+    private void alternarDetallePendientes() {
+        detallePendientesVisible = !detallePendientesVisible;
+        JComponent detalle = (JComponent) splitEmpleados.getBottomComponent();
+        Component tablaDetalle = ((BorderLayout) detalle.getLayout()).getLayoutComponent(BorderLayout.CENTER);
+        tablaDetalle.setVisible(detallePendientesVisible);
+        btnTogglePendientes.setText(detallePendientesVisible ? "▼ Ocultar detalle" : "▲ Mostrar detalle");
+        if (detallePendientesVisible) {
+            splitEmpleados.setDividerLocation(0.55);
+        } else {
+            // Deja visible solo la cabecera (título + botón) para poder volver a expandir
+            Component cabecera = ((BorderLayout) detalle.getLayout()).getLayoutComponent(BorderLayout.NORTH);
+            splitEmpleados.setDividerLocation(splitEmpleados.getHeight() - splitEmpleados.getDividerSize()
+                    - cabecera.getPreferredSize().height - 6);
+        }
+        splitEmpleados.revalidate();
+    }
+
+    // Pinta una "píldora" redondeada con texto (usado por los badges)
+    private static int pintarBadge(Graphics2D g, int x, int altoCelda, String texto, Color fondo, Color textoColor) {
+        FontMetrics fm = g.getFontMetrics();
+        int ancho = fm.stringWidth(texto) + 16, alto = Math.min(20, altoCelda - 6);
+        int y = (altoCelda - alto) / 2;
+        g.setColor(fondo);
+        g.fillRoundRect(x, y, ancho, alto, alto, alto);
+        g.setColor(textoColor);
+        g.drawString(texto, x + 8, y + (alto + fm.getAscent() - fm.getDescent()) / 2);
+        return x + ancho + 6;
+    }
+
+    /** Columna "Tareas Pendientes": badge con el total y, si aplica, badges de vencidas y críticas. */
+    private class PendientesBadgeRenderer extends JComponent implements javax.swing.table.TableCellRenderer {
+        private ResumenPendientes resumen;
+        private boolean seleccionado;
+        private JTable tabla;
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object valor, boolean isSelected,
+                                                       boolean foco, int fila, int columna) {
+            this.tabla = table;
+            this.resumen = valor instanceof ResumenPendientes r ? r : new ResumenPendientes(0, 0, 0);
+            this.seleccionado = isSelected;
+            setToolTipText(resumen.total() == 0 ? "Este empleado no tiene tareas pendientes"
+                    : resumen.total() + " pendiente(s), " + resumen.vencidas() + " vencida(s), "
+                      + resumen.criticas() + " crítica(s) (urgencia 5)");
+            return this;
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(seleccionado ? tabla.getSelectionBackground() : tabla.getBackground());
+            g.fillRect(0, 0, getWidth(), getHeight());
+            g.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            int x = 6;
+            if (resumen.total() == 0) {
+                x = pintarBadge(g, x, getHeight(), "Sin pendientes",
+                        temaOscuro ? new Color(71, 85, 105) : new Color(226, 232, 240),
+                        temaOscuro ? new Color(203, 213, 225) : COLOR_NEUTRO);
+            } else {
+                x = pintarBadge(g, x, getHeight(), resumen.toString(),
+                        temaOscuro ? new Color(30, 64, 175) : new Color(219, 234, 254),
+                        temaOscuro ? Color.WHITE : new Color(30, 64, 175));
+                if (resumen.vencidas() > 0) {
+                    x = pintarBadge(g, x, getHeight(), resumen.vencidas() + (resumen.vencidas() == 1 ? " vencida" : " vencidas"),
+                            temaOscuro ? new Color(127, 29, 29) : new Color(254, 226, 226),
+                            temaOscuro ? new Color(254, 202, 202) : COLOR_ROJO);
+                }
+                if (resumen.criticas() > 0) {
+                    pintarBadge(g, x, getHeight(), resumen.criticas() + (resumen.criticas() == 1 ? " crítica" : " críticas"),
+                            temaOscuro ? new Color(124, 45, 18) : new Color(255, 237, 213),
+                            temaOscuro ? new Color(254, 215, 170) : new Color(194, 65, 12));
+                }
+            }
+            g.dispose();
+        }
+    }
+
+    /** Columna "Urgencia" del detalle: badge de color según el nivel (1-5). */
+    private class UrgenciaBadgeRenderer extends JComponent implements javax.swing.table.TableCellRenderer {
+        private int urgencia;
+        private boolean seleccionado;
+        private JTable tabla;
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object valor, boolean isSelected,
+                                                       boolean foco, int fila, int columna) {
+            this.tabla = table;
+            this.urgencia = valor instanceof Integer u ? u : 0;
+            this.seleccionado = isSelected;
+            return this;
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(seleccionado ? tabla.getSelectionBackground() : tabla.getBackground());
+            g.fillRect(0, 0, getWidth(), getHeight());
+            g.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            Color fondo, texto;
+            if (urgencia >= 5)      { fondo = new Color(220, 38, 38);  texto = Color.WHITE; }
+            else if (urgencia == 4) { fondo = new Color(234, 88, 12);  texto = Color.WHITE; }
+            else if (urgencia == 3) { fondo = new Color(250, 204, 21); texto = COLOR_TEXTO_DARK; }
+            else                    { fondo = temaOscuro ? new Color(71, 85, 105) : new Color(226, 232, 240);
+                                      texto = temaOscuro ? Color.WHITE : COLOR_TEXTO_DARK; }
+            pintarBadge(g, 6, getHeight(), "Urgencia " + urgencia, fondo, texto);
+            g.dispose();
         }
     }
 
@@ -1136,6 +1297,32 @@ public class GestionTareasView extends JFrame {
     public DefaultTableModel getModeloLista() { return modeloLista; }
     public DefaultTableModel getModeloPrioridad() { return modeloPrioridad; }
     public DefaultTableModel getModeloEmpleados() { return modeloEmpleados; }
+    public DefaultTableModel getModeloPendientesEmpleado() { return modeloPendientesEmpleado; }
+
+    // --- Detalle de tareas pendientes por empleado ---
+    public void addSeleccionEmpleadoListener(ListSelectionListener listener) {
+        tablaEmpleados.getSelectionModel().addListSelectionListener(listener);
+    }
+
+    /** ID del empleado seleccionado en la tabla, o null si no hay selección. */
+    public String getEmpleadoIdSeleccionado() {
+        int fila = tablaEmpleados.getSelectedRow();
+        return fila < 0 ? null : String.valueOf(modeloEmpleados.getValueAt(fila, 0));
+    }
+
+    /** Vuelve a seleccionar al empleado (tras refrescar la tabla). Devuelve false si ya no está en la tabla. */
+    public boolean seleccionarEmpleado(String id) {
+        if (id == null) return false;
+        for (int i = 0; i < modeloEmpleados.getRowCount(); i++) {
+            if (id.equals(String.valueOf(modeloEmpleados.getValueAt(i, 0)))) {
+                tablaEmpleados.setRowSelectionInterval(i, i);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void setTituloPendientes(String texto) { lblTituloPendientes.setText(texto); }
     public DefaultTableModel getModeloTodas() { return modeloTodas; }
 
     public JButton getBtnAgregar() { return btnAgregar; }
