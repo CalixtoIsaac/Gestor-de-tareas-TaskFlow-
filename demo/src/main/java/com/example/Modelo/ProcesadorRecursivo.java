@@ -27,13 +27,10 @@ public class ProcesadorRecursivo {
         Map<String, List<Tarea>> tareasPorDepartamento = new LinkedHashMap<>();
         Map<String, List<Empleado>> empleadosPorDepartamento = new HashMap<>();
 
+        // 1) Obtener el personal de cada departamento involucrado
         for (Tarea tarea : tareas) {
             String departamento = tarea.getDepartamento();
             String claveDepartamento = departamento == null ? "" : departamento.toLowerCase();
-            List<Tarea> tareasDelDepartamento = tareasPorDepartamento.computeIfAbsent(
-                    claveDepartamento, clave -> new ArrayList<>());
-            tareasDelDepartamento.add(tarea);
-
             if (!empleadosPorDepartamento.containsKey(claveDepartamento)) {
                 empleadosPorDepartamento.put(claveDepartamento,
                         arbolEmpleados.obtenerPorDepartamento(departamento));
@@ -43,6 +40,19 @@ public class ProcesadorRecursivo {
         for (List<Empleado> empleadosDelDepartamento : empleadosPorDepartamento.values()) {
             for (Empleado empleado : empleadosDelDepartamento) {
                 asignaciones.put(empleado.getId(), new ArrayList<>());
+            }
+        }
+
+        // 2) Las tareas con Responsable Directo se respetan (cuentan como carga de ese empleado);
+        //    solo las "Sin Asignar" pasan al reparto por Divide y Vencerás.
+        for (Tarea tarea : tareas) {
+            Empleado responsable = tarea.getResponsableDirecto();
+            if (responsable != null && asignaciones.containsKey(responsable.getId())) {
+                asignaciones.get(responsable.getId()).add(tarea);
+            } else {
+                String departamento = tarea.getDepartamento();
+                String claveDepartamento = departamento == null ? "" : departamento.toLowerCase();
+                tareasPorDepartamento.computeIfAbsent(claveDepartamento, clave -> new ArrayList<>()).add(tarea);
             }
         }
 

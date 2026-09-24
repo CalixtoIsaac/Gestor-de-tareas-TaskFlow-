@@ -15,5 +15,9 @@ public class Empleado {
     public String getId(){ return id; }
     public String getNombre() { return nombre; }
     public String getDepartamento() { return departamento; }
+
+    // Texto mostrado en el selector "Responsable Directo" del formulario de tareas
+    @Override
+    public String toString() { return nombre + " (" + id + ")"; }
     
 }

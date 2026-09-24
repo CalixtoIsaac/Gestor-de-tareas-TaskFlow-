@@ -11,7 +11,12 @@ import javax.swing.plaf.basic.BasicArrowButton;
 import javax.swing.plaf.basic.BasicComboBoxUI;
 import java.awt.*;
 import java.awt.event.*;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
+
+import com.example.Modelo.Empleado;
+import com.example.Modelo.Tarea;
 
 
 public class GestionTareasView extends JFrame {
@@ -26,6 +31,14 @@ public class GestionTareasView extends JFrame {
     private static final Color COLOR_ROJO = new Color(220, 38, 38);
     private static final Color COLOR_VERDE = new Color(22, 163, 74);
     private static final Color COLOR_NEUTRO = new Color(71, 85, 105);
+    private static final Color COLOR_ROJO_OSCURO_TEMA = new Color(248, 113, 113);
+
+    // Columnas compartidas por todas las tablas de tareas
+    public static final String COL_RESPONSABLE = "Responsable Directo";
+    public static final String COL_FECHA_ENTREGA = "Fecha de Entrega y Días Restantes";
+    public static final String OPCION_SIN_ASIGNAR = "Sin Asignar (se asignará en Distribución)";
+    private static final String[] COLUMNAS_TAREAS = {"ID", "Título", "Departamento", COL_RESPONSABLE,
+            "Urgencia", "Tiempo (hrs)", COL_FECHA_ENTREGA};
 
     // Contenedores y Navegación
     private CardLayout cardLayout;
@@ -56,6 +69,7 @@ public class GestionTareasView extends JFrame {
     private JTextField txtTitulo, txtTiempoEstimado;
     private JComboBox<String> cbDepartamento, cbEstructura;
     private JComboBox<Integer> cbUrgencia;
+    private JComboBox<Object> cbResponsable; // OPCION_SIN_ASIGNAR o un Empleado del mismo departamento
     private SelectorFechaPanel selectorFecha;
     private JButton btnAgregar;
 
@@ -130,7 +144,7 @@ public class GestionTareasView extends JFrame {
         JPanel panelHeaderAcciones = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 5));
         panelHeaderAcciones.setOpaque(false);
 
-        btnModoVentana = new JButton("🗖 Pantalla Completa");
+        btnModoVentana = new JButton("Pantalla Completa");
         btnModoVentana.setFont(new Font("Segoe UI", Font.BOLD, 12));
         btnModoVentana.setForeground(Color.WHITE);
         btnModoVentana.setBackground(new Color(51, 65, 85));
@@ -402,7 +416,27 @@ public class GestionTareasView extends JFrame {
         cbDepartamento = new JComboBox<>(new String[]{"Sistemas", "Ventas", "Recursos Humanos", "Finanzas", "Logística"});
         cbDepartamento.setBackground(Color.WHITE); panel.add(cbDepartamento, gbc);
 
+        // Responsable Directo (opcional): el Controlador lo llena solo con empleados del departamento elegido
         gbc.gridx = 0; gbc.gridy = 2; gbc.weightx = 0.22;
+        JLabel lblResponsable = new JLabel("Responsable Directo :", SwingConstants.RIGHT);
+        lblResponsable.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        lblResponsable.setForeground(COLOR_TEXTO_DARK);
+        panel.add(lblResponsable, gbc);
+        gbc.gridx = 1; gbc.weightx = 0.78;
+        cbResponsable = new JComboBox<>(new Object[]{OPCION_SIN_ASIGNAR});
+        cbResponsable.setBackground(Color.WHITE);
+        cbResponsable.setToolTipText("Solo se listan empleados del departamento seleccionado");
+        panel.add(cbResponsable, gbc);
+
+        gbc.gridx = 1; gbc.gridy = 3; gbc.weightx = 0.78; gbc.insets = new Insets(0, 12, 10, 12);
+        JLabel lblAyudaResponsable = new JLabel("Solo aparecen empleados del departamento seleccionado. "
+                + "Si no eliges a nadie, la tarea quedará \"Sin Asignar\" para el módulo de Distribución.");
+        lblAyudaResponsable.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+        lblAyudaResponsable.setForeground(COLOR_NEUTRO);
+        panel.add(lblAyudaResponsable, gbc);
+        gbc.insets = new Insets(10, 12, 10, 12);
+
+        gbc.gridx = 0; gbc.gridy = 4; gbc.weightx = 0.22;
         JLabel lblUrgencia = new JLabel("Urgencia (1-Baja a 5-Crítica):", SwingConstants.RIGHT);
         lblUrgencia.setFont(new Font("Segoe UI", Font.BOLD, 12));
         lblUrgencia.setForeground(COLOR_TEXTO_DARK);
@@ -411,7 +445,7 @@ public class GestionTareasView extends JFrame {
         cbUrgencia = new JComboBox<>(new Integer[]{1, 2, 3, 4, 5});
         cbUrgencia.setBackground(Color.WHITE); panel.add(cbUrgencia, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 3; gbc.weightx = 0.22;
+        gbc.gridx = 0; gbc.gridy = 5; gbc.weightx = 0.22;
         JLabel lblTiempo = new JLabel("Tiempo Estimado (Horas):", SwingConstants.RIGHT);
         lblTiempo.setFont(new Font("Segoe UI", Font.BOLD, 12));
         lblTiempo.setForeground(COLOR_TEXTO_DARK);
@@ -421,24 +455,24 @@ public class GestionTareasView extends JFrame {
 
         selectorFecha = new SelectorFechaPanel();
 
-        gbc.gridx = 0; gbc.gridy = 4; gbc.weightx = 0.22;
+        gbc.gridx = 0; gbc.gridy = 6; gbc.weightx = 0.22;
         JLabel lblFecha = new JLabel("Fecha de Entrega:", SwingConstants.RIGHT);
         lblFecha.setFont(new Font("Segoe UI", Font.BOLD, 12));
         lblFecha.setForeground(COLOR_TEXTO_DARK);
         panel.add(lblFecha, gbc);
 
-        gbc.gridx = 1; gbc.gridy = 4; gbc.weightx = 0.78;
+        gbc.gridx = 1; gbc.gridy = 6; gbc.weightx = 0.78;
         JLabel lblFormatoFecha = new JLabel("Formato requerido: " + selectorFecha.getFormatoTexto()
                 + " (ejemplo: 2025-12-31). Si se deja vacío, se usará la fecha de hoy.");
         lblFormatoFecha.setFont(new Font("Segoe UI", Font.PLAIN, 10));
         lblFormatoFecha.setForeground(COLOR_NEUTRO);
         panel.add(lblFormatoFecha, gbc);
 
-        gbc.gridx = 1; gbc.gridy = 5; gbc.weightx = 0.78; gbc.insets = new Insets(0, 12, 10, 12);
+        gbc.gridx = 1; gbc.gridy = 7; gbc.weightx = 0.78; gbc.insets = new Insets(0, 12, 10, 12);
         panel.add(selectorFecha, gbc);
         gbc.insets = new Insets(10, 12, 10, 12);
 
-        gbc.gridx = 0; gbc.gridy = 6; gbc.weightx = 0.22;
+        gbc.gridx = 0; gbc.gridy = 8; gbc.weightx = 0.22;
         JLabel lblEstructura = new JLabel("Asignar a Estructura:", SwingConstants.RIGHT);
         lblEstructura.setFont(new Font("Segoe UI", Font.BOLD, 12));
         lblEstructura.setForeground(COLOR_TEXTO_DARK);
@@ -447,7 +481,7 @@ public class GestionTareasView extends JFrame {
         cbEstructura = new JComboBox<>(new String[]{"Pila (Urgente)", "Cola (Secuencial)", "Lista (General)", "Cola de Prioridad (Urgencia/Fecha)"});
         cbEstructura.setBackground(Color.WHITE); panel.add(cbEstructura, gbc);
 
-        gbc.gridx = 0; gbc.gridy = 7; gbc.gridwidth = 2; gbc.fill = GridBagConstraints.NONE;
+        gbc.gridx = 0; gbc.gridy = 9; gbc.gridwidth = 2; gbc.fill = GridBagConstraints.NONE;
         gbc.anchor = GridBagConstraints.CENTER; gbc.insets = new Insets(18, 15, 8, 15);
         btnAgregar = crearBotonEstilizado("  +  Agregar Tarea al Sistema  ", COLOR_PRIMARIO, Color.WHITE);
         btnAgregar.setPreferredSize(new Dimension(320, 42));
@@ -464,7 +498,7 @@ public class GestionTareasView extends JFrame {
 
     private JPanel crearCardPila() {
         JPanel panel = new JPanel(new BorderLayout(10, 10)); panel.setOpaque(false);
-        modeloPila = new DefaultTableModel(new String[]{"ID", "Título", "Departamento", "Urgencia", "Tiempo (hrs)"}, 0);
+        modeloPila = new DefaultTableModel(COLUMNAS_TAREAS, 0);
         tablaPila = crearTablaEstilizada(modeloPila);
         JScrollPane scroll = new JScrollPane(tablaPila);
         scroll.setBorder(crearBordeSeccion(" Pilas - Tareas Urgentes ", 14));
@@ -480,7 +514,7 @@ public class GestionTareasView extends JFrame {
 
     private JPanel crearCardCola() {
         JPanel panel = new JPanel(new BorderLayout(10, 10)); panel.setOpaque(false);
-        modeloCola = new DefaultTableModel(new String[]{"ID", "Título", "Departamento", "Urgencia", "Tiempo (hrs)"}, 0);
+        modeloCola = new DefaultTableModel(COLUMNAS_TAREAS, 0);
         tablaCola = crearTablaEstilizada(modeloCola);
         JScrollPane scroll = new JScrollPane(tablaCola);
         scroll.setBorder(crearBordeSeccion(" Colas - Tareas Programadas ", 14));
@@ -496,7 +530,7 @@ public class GestionTareasView extends JFrame {
 
     private JPanel crearCardLista() {
         JPanel panel = new JPanel(new BorderLayout(10, 10)); panel.setOpaque(false);
-        modeloLista = new DefaultTableModel(new String[]{"ID", "Título", "Departamento", "Urgencia", "Tiempo (hrs)"}, 0);
+        modeloLista = new DefaultTableModel(COLUMNAS_TAREAS, 0);
         tablaLista = crearTablaEstilizada(modeloLista);
         JScrollPane scroll = new JScrollPane(tablaLista);
         scroll.setBorder(crearBordeSeccion(" Listas - Tareas Generales ", 14));
@@ -518,7 +552,7 @@ public class GestionTareasView extends JFrame {
     // --- Card Cola de Prioridad ---
     private JPanel crearCardPrioridad() {
         JPanel panel = new JPanel(new BorderLayout(10, 10)); panel.setOpaque(false);
-        modeloPrioridad = new DefaultTableModel(new String[]{"ID", "Título", "Departamento", "Urgencia", "Tiempo (hrs)", "Fecha Límite"}, 0);
+        modeloPrioridad = new DefaultTableModel(COLUMNAS_TAREAS, 0);
         tablaPrioridad = crearTablaEstilizada(modeloPrioridad);
         JScrollPane scroll = new JScrollPane(tablaPrioridad);
         scroll.setBorder(crearBordeSeccion(" Cola de Prioridad - Ordenada por Urgencia y Fecha ", 14));
@@ -648,7 +682,8 @@ public class GestionTareasView extends JFrame {
 
     private JPanel crearCardTodas() {
         JPanel panel = new JPanel(new BorderLayout(10, 10)); panel.setOpaque(false);
-        modeloTodas = new DefaultTableModel(new String[]{"ID", "Título", "Departamento", "Urgencia", "Estructura"}, 0);
+        modeloTodas = new DefaultTableModel(new String[]{"ID", "Título", "Departamento", COL_RESPONSABLE,
+                "Urgencia", COL_FECHA_ENTREGA, "Estructura"}, 0);
         tablaTodas = crearTablaEstilizada(modeloTodas);
         JScrollPane scrollTabla = new JScrollPane(tablaTodas);
         scrollTabla.setBorder(crearBordeSeccion(" Consolidado General de Tareas ", 14));
@@ -681,7 +716,68 @@ public class GestionTareasView extends JFrame {
         JTableHeader header = table.getTableHeader(); header.setFont(new Font("Segoe UI", Font.BOLD, 12));
         header.setBackground(COLOR_TEXTO_DARK); header.setForeground(Color.WHITE);
         ((DefaultTableCellRenderer) header.getDefaultRenderer()).setHorizontalAlignment(SwingConstants.LEFT);
+        configurarColumnasTareas(table);
         return table;
+    }
+
+    // Instala los renderers de "Responsable Directo" y "Fecha de Entrega" en las tablas que tengan esas columnas
+    private void configurarColumnasTareas(JTable table) {
+        for (int i = 0; i < table.getColumnCount(); i++) {
+            String nombre = table.getColumnName(i);
+            if (COL_FECHA_ENTREGA.equals(nombre)) {
+                table.getColumnModel().getColumn(i).setCellRenderer(new FechaEntregaRenderer());
+                table.getColumnModel().getColumn(i).setPreferredWidth(230);
+            } else if (COL_RESPONSABLE.equals(nombre)) {
+                table.getColumnModel().getColumn(i).setCellRenderer(new ResponsableRenderer());
+                table.getColumnModel().getColumn(i).setPreferredWidth(150);
+            } else if ("ID".equals(nombre)) {
+                table.getColumnModel().getColumn(i).setPreferredWidth(40);
+            }
+        }
+    }
+
+    /**
+     * Recibe un LocalDate y muestra "dd/MM/yyyy (N días restantes)".
+     * Si la fecha ya venció, el texto se pinta en rojo con el tiempo transcurrido.
+     * Como se calcula al pintar, los días se mantienen correctos respecto a la fecha actual.
+     */
+    private class FechaEntregaRenderer extends DefaultTableCellRenderer {
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object valor, boolean seleccionado,
+                                                       boolean foco, int fila, int columna) {
+            super.getTableCellRendererComponent(table, valor, seleccionado, foco, fila, columna);
+            setFont(table.getFont());
+            Color colorTexto = seleccionado ? table.getSelectionForeground() : table.getForeground();
+            if (valor instanceof LocalDate fecha) {
+                setText(Tarea.describirFechaEntrega(fecha));
+                if (Tarea.calcularDiasRestantes(fecha) < 0) {
+                    colorTexto = temaOscuro ? COLOR_ROJO_OSCURO_TEMA : COLOR_ROJO;
+                    setFont(table.getFont().deriveFont(Font.BOLD));
+                }
+            }
+            setForeground(colorTexto);
+            return this;
+        }
+    }
+
+    // Muestra "Sin Asignar" en cursiva y gris para distinguirlo de un empleado real
+    private class ResponsableRenderer extends DefaultTableCellRenderer {
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object valor, boolean seleccionado,
+                                                       boolean foco, int fila, int columna) {
+            super.getTableCellRendererComponent(table, valor, seleccionado, foco, fila, columna);
+            boolean sinAsignar = valor == null || "Sin Asignar".equals(valor);
+            setText(sinAsignar ? "Sin Asignar" : valor.toString());
+            setFont(sinAsignar ? table.getFont().deriveFont(Font.ITALIC) : table.getFont());
+            if (seleccionado) {
+                setForeground(table.getSelectionForeground());
+            } else if (sinAsignar) {
+                setForeground(temaOscuro ? new Color(148, 163, 184) : COLOR_NEUTRO);
+            } else {
+                setForeground(table.getForeground());
+            }
+            return this;
+        }
     }
 
     private JButton crearBotonEstilizado(String texto, Color bg, Color fg) {
@@ -993,6 +1089,35 @@ public class GestionTareasView extends JFrame {
         try { return Integer.parseInt(txtTiempoEstimado.getText().trim()); } catch (Exception e) { return 2; }
     }
     public SelectorFechaPanel getSelectorFecha() { return selectorFecha; }
+
+    // --- Responsable Directo ---
+    public void addCambioDepartamentoListener(ActionListener listener) { cbDepartamento.addActionListener(listener); }
+
+    // Devuelve el Empleado elegido, o null si se dejó "Sin Asignar"
+    public Empleado getResponsableSeleccionado() {
+        Object seleccionado = cbResponsable.getSelectedItem();
+        return seleccionado instanceof Empleado empleado ? empleado : null;
+    }
+
+    // Recarga el selector con los empleados del departamento de la tarea, conservando la selección si sigue siendo válida
+    public void setResponsablesDisponibles(List<Empleado> empleados) {
+        Empleado previo = getResponsableSeleccionado();
+        cbResponsable.removeAllItems();
+        cbResponsable.addItem(OPCION_SIN_ASIGNAR);
+        Object aSeleccionar = OPCION_SIN_ASIGNAR;
+        for (Empleado empleado : empleados) {
+            cbResponsable.addItem(empleado);
+            if (previo != null && previo.getId().equals(empleado.getId())) {
+                aSeleccionar = empleado;
+            }
+        }
+        cbResponsable.setSelectedItem(aSeleccionar);
+        cbResponsable.setToolTipText(empleados.isEmpty()
+                ? "No hay empleados registrados en " + getDepartamentoSeleccionado()
+                : "Solo se listan empleados de " + getDepartamentoSeleccionado());
+    }
+
+    public void limpiarResponsable() { cbResponsable.setSelectedItem(OPCION_SIN_ASIGNAR); }
 
     public String getEmpleadoIdInput() { return txtEmpleadoId.getText().trim(); }
     public String getEmpleadoNombreInput() { return txtEmpleadoNombre.getText().trim(); }
