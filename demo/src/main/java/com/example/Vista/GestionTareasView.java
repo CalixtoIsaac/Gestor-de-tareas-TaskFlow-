@@ -508,7 +508,8 @@ public class GestionTareasView extends JFrame {
         panelBotones.add(cbFiltroDeptoLista);
         btnEliminarLista = crearBotonEstilizado("Eliminar por ID", COLOR_NEUTRO, Color.WHITE);
         btnBuscarDepto = crearBotonEstilizado("Buscar por Depto", COLOR_NEUTRO, Color.WHITE);
-        panelBotones.add(btnEliminarLista); panelBotones.add(btnBuscarDepto);
+        btnQuickSortUrgencia = crearBotonEstilizado("Ordenar Tareas por Urgencia", COLOR_TEXTO_DARK, Color.WHITE);
+        panelBotones.add(btnEliminarLista); panelBotones.add(btnBuscarDepto); panelBotones.add(btnQuickSortUrgencia);
 
         panel.add(scroll, BorderLayout.CENTER); panel.add(panelBotones, BorderLayout.SOUTH);
         return panel;
@@ -597,7 +598,7 @@ public class GestionTareasView extends JFrame {
 
     // --- Card Tablas Hash, QuickSort y Búsqueda Binaria ---
     private JPanel crearCardAlgoritmos() {
-        JPanel panel = new JPanel(new GridLayout(3, 1, 10, 10)); panel.setOpaque(false);
+        JPanel panel = new JPanel(new GridLayout(2, 1, 10, 10)); panel.setOpaque(false);
 
         // Subpanel 1: HashMap
         JPanel p1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10)); p1.setBackground(COLOR_TARJETA);
@@ -606,20 +607,14 @@ public class GestionTareasView extends JFrame {
         btnBuscarHash = crearBotonEstilizado("Buscar Tarea por ID", COLOR_PRIMARIO, Color.WHITE);
         p1.add(new JLabel("ID Tarea:")); p1.add(txtBuscarHashId); p1.add(btnBuscarHash);
 
-        // Subpanel 2: QuickSort
-        JPanel p2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10)); p2.setBackground(COLOR_TARJETA);
-        p2.setBorder(crearBordeSeccion(" Ordenar Tareas por Urgencia ", 12));
-        btnQuickSortUrgencia = crearBotonEstilizado("Ordenar Tareas de la Lista por Urgencia", COLOR_TEXTO_DARK, Color.WHITE);
-        p2.add(btnQuickSortUrgencia);
-
-        // Subpanel 3: Búsqueda Binaria
+        // Subpanel 2: Búsqueda Binaria
         JPanel p3 = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10)); p3.setBackground(COLOR_TARJETA);
         p3.setBorder(crearBordeSeccion(" Buscar Tarea por ID (Solo Tareas Activas: Pila, Cola y Lista) ", 12));
         txtBuscarBinariaId = new JTextField(10); estilarCampoTexto(txtBuscarBinariaId);
         btnBuscarBinaria = crearBotonEstilizado("Buscar Tarea por ID", COLOR_VERDE, Color.WHITE);
         p3.add(new JLabel("ID Tarea:")); p3.add(txtBuscarBinariaId); p3.add(btnBuscarBinaria);
 
-        panel.add(p1); panel.add(p2); panel.add(p3);
+        panel.add(p1); panel.add(p3);
         return panel;
     }
 
