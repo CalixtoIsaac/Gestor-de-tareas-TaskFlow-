@@ -42,6 +42,7 @@ public class GestionTareasController {
 
         inicializarPersistencia();
         initControlador();
+        refrescarResponsablesDisponibles();
         actualizarTablasYMetricas();
     }
 
@@ -57,7 +58,13 @@ public class GestionTareasController {
     }
 
     private void cargarDesdeBD() throws SQLException {
-        for (Tarea tarea : tareaRepositorio.cargarTodas()) {
+        // Primero los empleados: las tareas necesitan el árbol para resolver su Responsable Directo
+        for (Empleado empleado : empleadoRepositorio.cargarTodos()) {
+            listaEmpleadosMemoria.add(empleado);
+            arbolEmpleados.insertar(empleado);
+            gestorHashYAlgoritmos.guardarEmpleado(empleado);
+        }
+        for (Tarea tarea : tareaRepositorio.cargarTodas(arbolEmpleados::buscarPorId)) {
             gestorHashYAlgoritmos.guardarTarea(tarea);
             if (tarea.getTipoEstructura().startsWith("Pila")) {
                 pilaUrgentes.push(tarea);
@@ -68,11 +75,6 @@ public class GestionTareasController {
             } else {
                 listaGeneral.insert(tarea);
             }
-        }
-        for (Empleado empleado : empleadoRepositorio.cargarTodos()) {
-            listaEmpleadosMemoria.add(empleado);
-            arbolEmpleados.insertar(empleado);
-            gestorHashYAlgoritmos.guardarEmpleado(empleado);
         }
         vista.logGUI("[BD] Datos cargados correctamente.");
     }
@@ -101,6 +103,8 @@ public class GestionTareasController {
     private void initControlador() {
         // Eventos base
         vista.getBtnAgregar().addActionListener(e -> agregarTarea());
+        // Regla de negocio: el selector de Responsable solo muestra empleados del departamento de la tarea
+        vista.addCambioDepartamentoListener(e -> refrescarResponsablesDisponibles());
         vista.getBtnPopPila().addActionListener(e -> procesarPopPila());
         vista.getBtnPeekPila().addActionListener(e -> consultarPeekPila());
         vista.getBtnDequeueCola().addActionListener(e -> procesarDequeueCola());
@@ -156,8 +160,18 @@ public class GestionTareasController {
         int urgencia = vista.getUrgenciaSeleccionada();
         String tipoEst = vista.getEstructuraSeleccionada();
         int tiempo = vista.getTiempoEstimadoInput();
+        Empleado responsable = vista.getResponsableSeleccionado(); // null = "Sin Asignar"
 
-        Tarea nueva = new Tarea(titulo, depto, urgencia, tipoEst, tiempo, fechaEntrega);
+        // Validación defensiva de la regla de negocio (el selector ya viene filtrado por departamento)
+        if (responsable != null && !responsable.getDepartamento().equalsIgnoreCase(depto)) {
+            JOptionPane.showMessageDialog(vista,
+                    "El responsable seleccionado no pertenece al departamento " + depto + ".",
+                    "Atención", JOptionPane.WARNING_MESSAGE);
+            refrescarResponsablesDisponibles();
+            return;
+        }
+
+        Tarea nueva = new Tarea(titulo, depto, urgencia, tipoEst, tiempo, fechaEntrega, responsable);
         gestorHashYAlgoritmos.guardarTarea(nueva);
 
         if (tipoEst.startsWith("Pila")) {
@@ -174,9 +188,19 @@ public class GestionTareasController {
             vista.logGUI("[INSERT] Tarea en Lista General: " + titulo);
         }
 
+        vista.logGUI("   Responsable Directo: " + nueva.getNombreResponsable()
+                + " | Entrega: " + nueva.getFechaEntregaFormateada());
+
         vista.limpiarTituloInput();
         vista.getSelectorFecha().limpiar();
+        vista.limpiarResponsable();
         actualizarTablasYMetricas();
+    }
+
+    // Recarga el selector "Responsable Directo" con los empleados del departamento elegido (recorrido del árbol)
+    private void refrescarResponsablesDisponibles() {
+        String depto = vista.getDepartamentoSeleccionado();
+        vista.setResponsablesDisponibles(depto == null ? List.of() : arbolEmpleados.obtenerPorDepartamento(depto));
     }
 
     private void extraerColaPrioridad() {
@@ -216,6 +240,7 @@ public class GestionTareasController {
 
         vista.logGUI("[BST INSERT] Empleado registrado en Árbol Binario: " + nombre + " (" + id + ")");
         actualizarTablaEmpleados(listaEmpleadosMemoria);
+        refrescarResponsablesDisponibles();
     }
 
     private void buscarEmpleadoBST() {
@@ -257,7 +282,24 @@ public class GestionTareasController {
             return;
         }
 
+        // Tareas que ya tenían Responsable Directo antes de distribuir (se respetan)
+        Set<Tarea> conResponsablePrevio = new HashSet<>();
+        for (Tarea t : tareas) if (t.tieneResponsable()) conResponsablePrevio.add(t);
+
         Map<String, List<Tarea>> distribucion = ProcesadorRecursivo.distribuirTareasDivideYVenceras(tareas, arbolEmpleados);
+
+        // Las tareas "Sin Asignar" quedan asignadas al empleado que les tocó en la distribución
+        int nuevasAsignaciones = 0;
+        for (Map.Entry<String, List<Tarea>> entrada : distribucion.entrySet()) {
+            Empleado empleado = arbolEmpleados.buscarPorId(entrada.getKey());
+            if (empleado == null) continue;
+            for (Tarea t : entrada.getValue()) {
+                if (!t.tieneResponsable()) {
+                    t.setResponsableDirecto(empleado);
+                    nuevasAsignaciones++;
+                }
+            }
+        }
 
         StringBuilder sb = new StringBuilder("=== DISTRIBUCIÓN EQUILIBRADA DE TAREAS (DIVIDE Y VENCERÁS) ===\n\n");
         Set<String> departamentosSinPersonal = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
@@ -285,7 +327,9 @@ public class GestionTareasController {
             List<Tarea> asignadas = distribucion.get(emp.getId());
             if (asignadas != null && !asignadas.isEmpty()) {
                 for (Tarea t : asignadas) {
-                    sb.append("   -> ").append(t.toString()).append("\n");
+                    sb.append("   -> ").append(t.toString())
+                            .append(conResponsablePrevio.contains(t) ? "  [Responsable directo]" : "  [Asignada en esta distribución]")
+                            .append("\n");
                 }
             } else {
                 sb.append("   -> Sin tareas asignadas.\n");
@@ -293,7 +337,9 @@ public class GestionTareasController {
             sb.append("\n");
         }
         vista.setResultadoRecursivo(sb.toString());
-        vista.logGUI("[DIVIDE Y VENCERÁS] Distribución realizada entre " + listaEmpleadosMemoria.size() + " empleados.");
+        vista.logGUI("[DIVIDE Y VENCERÁS] Distribución realizada entre " + listaEmpleadosMemoria.size() + " empleados. "
+                + nuevasAsignaciones + " tarea(s) sin asignar recibieron responsable.");
+        actualizarTablasYMetricas();
     }
 
     private void buscarHashO1() {
@@ -444,20 +490,21 @@ public class GestionTareasController {
 
     private void actualizarTablasYMetricas() {
         vista.getModeloPila().setRowCount(0);
-        for (Tarea t : pilaUrgentes.getPila()) vista.getModeloPila().addRow(new Object[]{t.getId(), t.getTitulo(), t.getDepartamento(), t.getUrgencia(), t.getTiempoEstimado()});
+        for (Tarea t : pilaUrgentes.getPila()) vista.getModeloPila().addRow(filaTarea(t));
 
         vista.getModeloCola().setRowCount(0);
-        for (Tarea t : colaProgramadas.getCola()) vista.getModeloCola().addRow(new Object[]{t.getId(), t.getTitulo(), t.getDepartamento(), t.getUrgencia(), t.getTiempoEstimado()});
+        for (Tarea t : colaProgramadas.getCola()) vista.getModeloCola().addRow(filaTarea(t));
 
         vista.getModeloLista().setRowCount(0);
-        for (Tarea t : listaGeneral.getLista()) vista.getModeloLista().addRow(new Object[]{t.getId(), t.getTitulo(), t.getDepartamento(), t.getUrgencia(), t.getTiempoEstimado()});
+        for (Tarea t : listaGeneral.getLista()) vista.getModeloLista().addRow(filaTarea(t));
 
         vista.getModeloPrioridad().setRowCount(0);
-        for (Tarea t : colaPrioridad.obtenerTareasOrdenadas()) vista.getModeloPrioridad().addRow(new Object[]{t.getId(), t.getTitulo(), t.getDepartamento(), t.getUrgencia(), t.getTiempoEstimado(), t.getFechaEntrega()});
+        for (Tarea t : colaPrioridad.obtenerTareasOrdenadas()) vista.getModeloPrioridad().addRow(filaTarea(t));
 
         List<Tarea> todas = obtenerTodasLasTareas();
         vista.getModeloTodas().setRowCount(0);
-        for (Tarea t : todas) vista.getModeloTodas().addRow(new Object[]{t.getId(), t.getTitulo(), t.getDepartamento(), t.getUrgencia(), t.getTipoEstructura()});
+        for (Tarea t : todas) vista.getModeloTodas().addRow(new Object[]{t.getId(), t.getTitulo(), t.getDepartamento(),
+                t.getNombreResponsable(), t.getUrgencia(), t.getFechaEntrega(), t.getTipoEstructura()});
 
         Map<String, Integer> horasPorDepartamento = new LinkedHashMap<>();
         Map<String, Integer> tareasPorDepartamento = new LinkedHashMap<>();
@@ -472,5 +519,12 @@ public class GestionTareasController {
                 colaProgramadas.getCola().size(), resueltasCola,
                 listaGeneral.getLista().size(), resueltasLista,
                 horasPorDepartamento, tareasPorDepartamento);
+    }
+
+    // Fila estándar de las tablas Pila, Cola, Lista y Cola de Prioridad.
+    // La fecha se envía como LocalDate: la Vista la formatea y calcula los días restantes al pintar.
+    private Object[] filaTarea(Tarea t) {
+        return new Object[]{t.getId(), t.getTitulo(), t.getDepartamento(), t.getNombreResponsable(),
+                t.getUrgencia(), t.getTiempoEstimado(), t.getFechaEntrega()};
     }
 }

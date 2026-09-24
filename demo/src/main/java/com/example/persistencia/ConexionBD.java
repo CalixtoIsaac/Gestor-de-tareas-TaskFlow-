@@ -5,6 +5,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
@@ -35,9 +36,14 @@ public class ConexionBD {
                         urgencia INTEGER NOT NULL,
                         tiempo_estimado INTEGER NOT NULL,
                         fecha_entrega TEXT NOT NULL,
-                        estructura TEXT NOT NULL
+                        estructura TEXT NOT NULL,
+                        responsable_id TEXT
                     )
                     """);
+            // Migración: bases de datos creadas antes de existir el "Responsable Directo"
+            if (!existeColumna(conexion, "tareas", "responsable_id")) {
+                sentencia.executeUpdate("ALTER TABLE tareas ADD COLUMN responsable_id TEXT");
+            }
             sentencia.executeUpdate("""
                     CREATE TABLE IF NOT EXISTS empleados (
                         id TEXT PRIMARY KEY,
@@ -46,5 +52,17 @@ public class ConexionBD {
                     )
                     """);
         }
+    }
+
+    private boolean existeColumna(Connection conexion, String tabla, String columna) throws SQLException {
+        try (Statement consulta = conexion.createStatement();
+             ResultSet columnas = consulta.executeQuery("PRAGMA table_info(" + tabla + ")")) {
+            while (columnas.next()) {
+                if (columna.equalsIgnoreCase(columnas.getString("name"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }
