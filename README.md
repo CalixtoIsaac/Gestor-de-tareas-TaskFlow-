@@ -32,7 +32,7 @@ El sistema permite registrar tareas empresariales y asignarlas a distintas estru
 
 La interfaz está redactada en lenguaje orientado al usuario final (por ejemplo, "Cálculos y Distribución" o "Buscar Tarea por ID" en lugar de nombrar directamente los algoritmos); la terminología técnica de cada estructura se documenta en los comentarios del código y en la documentación del proyecto.
 
-> **Nota:** la aplicación no persiste datos en disco ni en base de datos. Toda la información (tareas, empleados, dependencias) vive únicamente en memoria mientras el programa se está ejecutando y se pierde al cerrarlo.
+La aplicación utiliza una base de datos SQLite para conservar las tareas activas y los empleados. Al iniciar, carga esos datos desde la base; al cerrar la ventana, guarda los cambios. Las dependencias del grafo y las tareas ya procesadas o eliminadas no se conservan.
 
 ## Estructuras de datos y algoritmos implementados
 
@@ -113,7 +113,7 @@ java -cp target/classes com.example.GestionTareasApp
 
 ## Guía rápida de uso
 
-1. Toda tarea se crea desde **Registrar Tarea**, eligiendo a qué estructura se asigna (Pila, Cola, Lista o Cola de Prioridad) y, opcionalmente, su fecha de entrega (texto en formato `yyyy-MM-dd` o mediante el selector de calendario). Si se deja vacía, se usa la fecha del día, Al crearse, la información se guarda de forma persistente.
+1. Toda tarea se crea desde **Registrar Tarea**, eligiendo a qué estructura se asigna (Pila, Cola, Lista o Cola de Prioridad) y, opcionalmente, su fecha de entrega (texto en formato `yyyy-MM-dd` o mediante el selector de calendario). Si se deja vacía, se usa la fecha del día. Los cambios se escriben en la base de datos al cerrar la ventana; cerrar el proceso desde el IDE o terminarlo a la fuerza puede impedir ese guardado.
 2. Cada estructura tiene su propia pestaña (**Pilas**, **Colas**, **Listas**, **Cola Prioridad**) con las operaciones correspondientes (procesar, consultar, eliminar, buscar).
 3. Todo empleado debe registrarse desde **Empleados** antes de usarse en búsquedas o en la distribución de tareas.
 4. **Cálculos y Distribución** calcula el tiempo total estimado y reparte las tareas entre los empleados registrados.
@@ -124,7 +124,9 @@ java -cp target/classes com.example.GestionTareasApp
 ## Limitaciones conocidas
 
 - Los IDs de empleado (`String`) se comparan de forma **lexicográfica** en el árbol binario, no numérica (p. ej. "10" se ordena antes que "9").
-- No hay persistencia: los datos se pierden al cerrar la aplicación.
+- Las dependencias entre tareas no se guardan en la base de datos y deben registrarse de nuevo al iniciar.
+- Solo se guardan las tareas que siguen activas en las estructuras; las tareas procesadas o eliminadas no se conservan.
+- La base SQLite se encuentra en `data/gestion_tareas.db`, relativa a la carpeta de trabajo desde la que se ejecuta la aplicación.
 - El árbol binario de empleados no se auto-balancea.
 
 ## Roadmap / mejoras futuras
