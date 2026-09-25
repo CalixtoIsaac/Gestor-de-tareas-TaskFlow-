@@ -142,9 +142,16 @@ public class GestionTareasView extends JFrame {
     public record MetodoBusqueda(String nombre, String complejidad, int comparaciones, boolean encontrado) {}
 
     // Componentes Grafo de Dependencias
-    private JTextField txtGrafoTareaPrevia, txtGrafoTareaSiguiente;
-    private JButton btnAgregarDependencia, btnCalcularOrdenTopologico;
-    private JTextArea areaOrdenTopologico;
+    private JComboBox<Object> cbGrafoTareaPrevia, cbGrafoTareaSiguiente; // editables: se elige o se escribe el folio
+    private JButton btnAgregarDependencia, btnCalcularOrdenTopologico, btnLimpiarGrafo;
+    private OrdenEjecucionPanel panelOrdenEjecucion;
+    private GrafoVisual grafoVisual;
+    private JLabel lblInfoGrafo;
+
+    /** Opción de los selectores del grafo: una tarea activa mostrada como "#folio · título". */
+    public record OpcionTarea(int id, String titulo) {
+        @Override public String toString() { return "#" + id + " · " + titulo; }
+    }
 
     // Consola de eventos
     private JTextArea areaConsolaGUI;
@@ -1554,28 +1561,381 @@ public class GestionTareasView extends JFrame {
     private JPanel crearCardGrafo() {
         JPanel panel = new JPanel(new BorderLayout(10, 10)); panel.setOpaque(false);
 
-        JPanel panelForm = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10)); panelForm.setBackground(COLOR_TARJETA);
-        panelForm.setBorder(crearBordeSeccion(" Registrar Dependencia entre Tareas ", 12));
+        // Formulario: solo se listan tareas activas (también se puede escribir el folio)
+        JPanel panelForm = new JPanel(new BorderLayout(0, 4)); panelForm.setBackground(COLOR_TARJETA);
+        panelForm.setBorder(crearBordeSeccion(" Registrar Dependencia entre Tareas Activas ", 12));
 
-        txtGrafoTareaPrevia = new JTextField(8); estilarCampoTexto(txtGrafoTareaPrevia);
-        txtGrafoTareaSiguiente = new JTextField(8); estilarCampoTexto(txtGrafoTareaSiguiente);
-        btnAgregarDependencia = crearBotonEstilizado("+ Agregar Dependencia", COLOR_NEUTRO, Color.WHITE);
-        btnCalcularOrdenTopologico = crearBotonEstilizado("Calcular Secuencia de Ejecución", COLOR_PRIMARIO, Color.WHITE);
+        cbGrafoTareaPrevia = new JComboBox<>(); cbGrafoTareaPrevia.setEditable(true);
+        cbGrafoTareaSiguiente = new JComboBox<>(); cbGrafoTareaSiguiente.setEditable(true);
+        cbGrafoTareaPrevia.setPreferredSize(new Dimension(250, 30));
+        cbGrafoTareaSiguiente.setPreferredSize(new Dimension(250, 30));
+        cbGrafoTareaPrevia.setToolTipText("Tarea que debe terminarse primero (elige de la lista o escribe su folio)");
+        cbGrafoTareaSiguiente.setToolTipText("Tarea que no puede empezar hasta terminar la previa");
+        btnAgregarDependencia = crearBotonEstilizado("+ Agregar Dependencia", COLOR_PRIMARIO, Color.WHITE);
+        btnCalcularOrdenTopologico = crearBotonEstilizado("Calcular Orden de Ejecución", PALETA_MENU[0], Color.WHITE);
+        btnLimpiarGrafo = crearBotonEstilizado("Limpiar Grafo", COLOR_NEUTRO, Color.WHITE);
 
-        panelForm.add(new JLabel("ID Tarea Previa:")); panelForm.add(txtGrafoTareaPrevia);
-        panelForm.add(new JLabel("ID Tarea Siguiente:")); panelForm.add(txtGrafoTareaSiguiente);
-        panelForm.add(btnAgregarDependencia); panelForm.add(btnCalcularOrdenTopologico);
+        JPanel filaForm = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 4)); filaForm.setOpaque(false);
+        JLabel lblPrevia = new JLabel("Tarea previa:"); lblPrevia.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        JLabel lblFlecha = new JLabel("→"); lblFlecha.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        JLabel lblSiguiente = new JLabel("Tarea siguiente:"); lblSiguiente.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        filaForm.add(lblPrevia); filaForm.add(cbGrafoTareaPrevia); filaForm.add(lblFlecha);
+        filaForm.add(lblSiguiente); filaForm.add(cbGrafoTareaSiguiente);
+        filaForm.add(btnAgregarDependencia);
 
-        areaOrdenTopologico = new JTextArea(15, 70);
-        areaOrdenTopologico.setEditable(false);
-        areaOrdenTopologico.setFont(new Font("Consolas", Font.PLAIN, 12));
-        areaOrdenTopologico.setBackground(new Color(15, 23, 42));
-        areaOrdenTopologico.setForeground(new Color(34, 197, 94));
-        JScrollPane scroll = new JScrollPane(areaOrdenTopologico);
-        scroll.setBorder(crearBordeSeccion(" Grafo de Dependencias - Orden de Ejecución Solucionado ", 14));
+        JLabel ayuda = new JLabel("La previa debe terminarse antes que la siguiente. Solo tareas activas; "
+                + "al finalizarse, una tarea sale del grafo.");
+        ayuda.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        ayuda.setBorder(new EmptyBorder(0, 8, 2, 8));
+        JPanel botonesGrafo = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0)); botonesGrafo.setOpaque(false);
+        botonesGrafo.add(btnCalcularOrdenTopologico); botonesGrafo.add(btnLimpiarGrafo);
+        JPanel filaAyuda = new JPanel(new BorderLayout(10, 0)); filaAyuda.setOpaque(false);
+        filaAyuda.add(ayuda, BorderLayout.CENTER);
+        filaAyuda.add(botonesGrafo, BorderLayout.EAST);
+        panelForm.add(filaForm, BorderLayout.CENTER);
+        panelForm.add(filaAyuda, BorderLayout.SOUTH);
 
-        panel.add(panelForm, BorderLayout.NORTH); panel.add(scroll, BorderLayout.CENTER);
+        // Orden de ejecución destacado
+        panelOrdenEjecucion = new OrdenEjecucionPanel();
+        JScrollPane scrollOrden = new JScrollPane(panelOrdenEjecucion);
+        scrollOrden.setBorder(null);
+        scrollOrden.setPreferredSize(new Dimension(300, 150));
+        scrollOrden.getVerticalScrollBar().setUnitIncrement(12);
+        JPanel panelOrden = new JPanel(new BorderLayout()); panelOrden.setBackground(COLOR_TARJETA);
+        panelOrden.setBorder(crearBordeSeccion(" Orden de Ejecución Calculado ", 14));
+        panelOrden.add(scrollOrden, BorderLayout.CENTER);
+
+        // Grafo por etapas
+        grafoVisual = new GrafoVisual();
+        JScrollPane scrollGrafo = new JScrollPane(grafoVisual);
+        scrollGrafo.setBorder(BorderFactory.createLineBorder(COLOR_BORDE));
+        scrollGrafo.getHorizontalScrollBar().setUnitIncrement(16);
+        scrollGrafo.getVerticalScrollBar().setUnitIncrement(16);
+        lblInfoGrafo = new JLabel("Sin dependencias registradas.");
+        lblInfoGrafo.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        lblInfoGrafo.setBorder(new EmptyBorder(0, 4, 4, 4));
+        JPanel panelGrafo = new JPanel(new BorderLayout()); panelGrafo.setBackground(COLOR_TARJETA);
+        panelGrafo.setBorder(crearBordeSeccion(" Grafo de Dependencias (flujo de izquierda a derecha) ", 14));
+        panelGrafo.add(lblInfoGrafo, BorderLayout.NORTH);
+        panelGrafo.add(scrollGrafo, BorderLayout.CENTER);
+
+        JPanel centro = new JPanel(new BorderLayout(0, 10)); centro.setOpaque(false);
+        centro.add(panelOrden, BorderLayout.NORTH);
+        centro.add(panelGrafo, BorderLayout.CENTER);
+
+        panel.add(panelForm, BorderLayout.NORTH); panel.add(centro, BorderLayout.CENTER);
         return panel;
+    }
+
+    // ---------- API pública del módulo Grafo ----------
+
+    /** Recarga los selectores con las tareas activas, conservando lo que el usuario tenía escrito/elegido. */
+    public void setTareasActivasGrafo(List<OpcionTarea> opciones) {
+        for (JComboBox<Object> combo : List.of(cbGrafoTareaPrevia, cbGrafoTareaSiguiente)) {
+            Object actual = combo.getEditor().getItem();
+            combo.removeAllItems();
+            for (OpcionTarea o : opciones) combo.addItem(o);
+            combo.setSelectedItem(null);
+            combo.getEditor().setItem(actual == null ? "" : actual);
+        }
+    }
+
+    /** Texto elegido o escrito en el selector (p. ej. "#5 · Backup BD" o "5"). */
+    public String getGrafoTareaPreviaInput() { return textoCombo(cbGrafoTareaPrevia); }
+    public String getGrafoTareaSiguienteInput() { return textoCombo(cbGrafoTareaSiguiente); }
+
+    private String textoCombo(JComboBox<Object> combo) {
+        Object item = combo.isEditable() ? combo.getEditor().getItem() : combo.getSelectedItem();
+        return item == null ? "" : item.toString().trim();
+    }
+
+    public void limpiarSelectoresGrafo() {
+        cbGrafoTareaPrevia.getEditor().setItem("");
+        cbGrafoTareaSiguiente.getEditor().setItem("");
+    }
+
+    /**
+     * Pinta el grafo y el orden de ejecución.
+     * @param tareas   datos de cada nodo (folio -> tarea)
+     * @param aristas  pares {previa, siguiente}
+     * @param orden    secuencia topológica (vacía si no hay dependencias)
+     * @param etapas   folio -> etapa (1 = puede empezar ya)
+     */
+    public void mostrarGrafo(Map<Integer, Tarea> tareas, List<int[]> aristas, List<Integer> orden,
+                             Map<Integer, Integer> etapas, String info) {
+        lblInfoGrafo.setText(info);
+        panelOrdenEjecucion.setDatos(tareas, orden, etapas);
+        grafoVisual.setDatos(tareas, aristas, orden, etapas);
+    }
+
+    public JButton getBtnLimpiarGrafo() { return btnLimpiarGrafo; }
+
+    private Color colorEtapa(int etapa) {
+        Color[] paleta = temaOscuro ? PALETA_MENU_OSCURO : PALETA_MENU;
+        return paleta[(Math.max(1, etapa) - 1) % paleta.length];
+    }
+
+    /** Franja destacada: pasos numerados con folio y título, agrupados por etapa, en varias líneas. */
+    private class OrdenEjecucionPanel extends JComponent implements Scrollable {
+        private Map<Integer, Tarea> tareas = Map.of();
+        private List<Integer> orden = List.of();
+        private Map<Integer, Integer> etapas = Map.of();
+        private static final int PASO_ALTO = 46, SEP = 26;
+
+        OrdenEjecucionPanel() { putClientProperty(TEMA_PROPIO, true); }
+
+        void setDatos(Map<Integer, Tarea> tareas, List<Integer> orden, Map<Integer, Integer> etapas) {
+            this.tareas = tareas; this.orden = orden; this.etapas = etapas;
+            revalidate(); repaint();
+        }
+
+        private String titulo(int id) {
+            Tarea t = tareas.get(id);
+            String tit = t == null ? "" : t.getTitulo();
+            return tit.length() > 22 ? tit.substring(0, 21) + "…" : tit;
+        }
+
+        private int anchoPaso(FontMetrics fmTitulo, int id) {
+            return Math.max(120, fmTitulo.stringWidth(titulo(id)) + 58);
+        }
+
+        @Override public Dimension getPreferredSize() {
+            int ancho = getParent() != null ? Math.max(200, getParent().getWidth()) : 600;
+            FontMetrics fm = getFontMetrics(new Font("Segoe UI", Font.PLAIN, 11));
+            int x = 12, lineas = 1;
+            for (int id : orden) {
+                int a = anchoPaso(fm, id);
+                if (x + a > ancho - 12 && x > 12) { lineas++; x = 12; }
+                x += a + SEP;
+            }
+            return new Dimension(ancho, 40 + lineas * (PASO_ALTO + 14));
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g.setColor(temaOscuro ? new Color(51, 65, 85) : COLOR_TARJETA);
+            g.fillRect(0, 0, getWidth(), getHeight());
+            Color texto = temaOscuro ? Color.WHITE : COLOR_TEXTO_DARK;
+            Color suave = temaOscuro ? new Color(203, 213, 225) : COLOR_NEUTRO;
+
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            g.setColor(suave);
+            if (orden.isEmpty()) {
+                g.drawString("Agrega dependencias entre tareas activas para calcular en qué orden deben resolverse.", 12, 22);
+                g.dispose();
+                return;
+            }
+            int totalEtapas = 0;
+            for (int e : etapas.values()) totalEtapas = Math.max(totalEtapas, e);
+            g.drawString("Resuelve las tareas en este orden exacto para no bloquear ninguna dependencia  ·  "
+                    + orden.size() + " tareas en " + totalEtapas + (totalEtapas == 1 ? " etapa" : " etapas")
+                    + " (las de la misma etapa no dependen entre sí).", 12, 18);
+
+            Font fTitulo = new Font("Segoe UI", Font.PLAIN, 11);
+            FontMetrics fmT = g.getFontMetrics(fTitulo);
+            int x = 12, y = 30;
+            for (int i = 0; i < orden.size(); i++) {
+                int id = orden.get(i), a = anchoPaso(fmT, id);
+                if (x + a > getWidth() - 12 && x > 12) { x = 12; y += PASO_ALTO + 14; }
+                int etapa = etapas.getOrDefault(id, 1);
+                Color c = colorEtapa(etapa);
+                // Tarjeta del paso
+                g.setColor(temaOscuro ? new Color(30, 41, 59) : new Color(248, 250, 252));
+                g.fillRoundRect(x, y, a, PASO_ALTO, 12, 12);
+                g.setColor(c);
+                g.setStroke(new BasicStroke(1.6f));
+                g.drawRoundRect(x, y, a, PASO_ALTO, 12, 12);
+                // Círculo con el número de paso
+                g.fillOval(x + 8, y + 9, 28, 28);
+                g.setFont(new Font("Segoe UI", Font.BOLD, 13));
+                g.setColor(Color.WHITE);
+                String num = String.valueOf(i + 1);
+                FontMetrics fmN = g.getFontMetrics();
+                g.drawString(num, x + 22 - fmN.stringWidth(num) / 2, y + 23 + (fmN.getAscent() - fmN.getDescent()) / 2 - 5);
+                // Folio + título + etapa
+                g.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                g.setColor(texto);
+                g.drawString("#" + id, x + 44, y + 18);
+                int xEtapa = x + 44 + g.getFontMetrics().stringWidth("#" + id) + 6;
+                g.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+                g.setColor(c);
+                g.drawString("Etapa " + etapa, xEtapa, y + 18);
+                g.setFont(fTitulo);
+                g.setColor(suave);
+                g.drawString(titulo(id), x + 44, y + 35);
+                // Flecha al siguiente paso
+                if (i < orden.size() - 1) {
+                    int ax = x + a + 5, ay = y + PASO_ALTO / 2;
+                    g.setColor(suave);
+                    g.setStroke(new BasicStroke(1.6f));
+                    g.drawLine(ax, ay, ax + SEP - 12, ay);
+                    g.fillPolygon(new int[]{ax + SEP - 9, ax + SEP - 15, ax + SEP - 15}, new int[]{ay, ay - 5, ay + 5}, 3);
+                }
+                x += a + SEP;
+            }
+            g.dispose();
+        }
+
+        @Override public Dimension getPreferredScrollableViewportSize() { return new Dimension(600, 150); }
+        @Override public int getScrollableUnitIncrement(Rectangle r, int o, int d) { return 12; }
+        @Override public int getScrollableBlockIncrement(Rectangle r, int o, int d) { return r.height; }
+        @Override public boolean getScrollableTracksViewportWidth() { return true; }
+        @Override public boolean getScrollableTracksViewportHeight() { return false; }
+    }
+
+    /**
+     * Dibujo del grafo dirigido por columnas: cada columna es una etapa (izquierda = se puede
+     * empezar ya). Las flechas van de la tarea previa a la siguiente.
+     */
+    private class GrafoVisual extends JComponent {
+        private static final int NODO_ANCHO = 150, NODO_ALTO = 50, SEP_COL = 90, SEP_FILA = 22, MARGEN = 30;
+        private Map<Integer, Tarea> tareas = Map.of();
+        private List<int[]> aristas = List.of();
+        private Map<Integer, Integer> pasos = Map.of();
+        private Map<Integer, Integer> etapas = Map.of();
+        private final Map<Integer, Rectangle> posiciones = new java.util.HashMap<>();
+        private int columnas, filasMax, carriles, yCarril;
+        private final Map<String, Integer> carrilDeArista = new java.util.HashMap<>();
+        private static final int SEP_CARRIL = 12;
+
+        GrafoVisual() { putClientProperty(TEMA_PROPIO, true); }
+
+        void setDatos(Map<Integer, Tarea> tareas, List<int[]> aristas, List<Integer> orden, Map<Integer, Integer> etapas) {
+            this.tareas = tareas; this.aristas = aristas; this.etapas = etapas;
+            Map<Integer, Integer> p = new java.util.HashMap<>();
+            for (int i = 0; i < orden.size(); i++) p.put(orden.get(i), i + 1);
+            this.pasos = p;
+            // Agrupa por etapa respetando el orden de ejecución dentro de cada columna
+            Map<Integer, List<Integer>> porEtapa = new java.util.TreeMap<>();
+            for (int id : orden) porEtapa.computeIfAbsent(etapas.getOrDefault(id, 1), k -> new java.util.ArrayList<>()).add(id);
+            posiciones.clear();
+            columnas = porEtapa.size(); filasMax = 0;
+            for (List<Integer> col : porEtapa.values()) filasMax = Math.max(filasMax, col.size());
+
+            // Reduce cruces: cada tarea se acomoda cerca de la altura promedio de sus requisitos
+            Map<Integer, Double> filaDe = new java.util.HashMap<>();
+            for (List<Integer> col : porEtapa.values()) {
+                for (int id : col) {
+                    double suma = 0; int n = 0;
+                    for (int[] a : aristas) if (a[1] == id && filaDe.containsKey(a[0])) { suma += filaDe.get(a[0]); n++; }
+                    filaDe.put(id, n == 0 ? Double.MAX_VALUE : suma / n);
+                }
+                java.util.List<Integer> copia = new java.util.ArrayList<>(col);
+                col.sort(java.util.Comparator.comparingDouble((Integer id) -> filaDe.get(id)).thenComparingInt(copia::indexOf));
+                for (int f = 0; f < col.size(); f++) filaDe.put(col.get(f), (double) f);
+            }
+            int c = 0;
+            for (List<Integer> col : porEtapa.values()) {
+                int altoCol = col.size() * NODO_ALTO + (col.size() - 1) * SEP_FILA;
+                int altoTotal = filasMax * NODO_ALTO + (filasMax - 1) * SEP_FILA;
+                int y0 = MARGEN + 22 + (altoTotal - altoCol) / 2;      // centra verticalmente cada columna
+                for (int f = 0; f < col.size(); f++) {
+                    posiciones.put(col.get(f), new Rectangle(MARGEN + c * (NODO_ANCHO + SEP_COL),
+                            y0 + f * (NODO_ALTO + SEP_FILA), NODO_ANCHO, NODO_ALTO));
+                }
+                c++;
+            }
+            // Las flechas que saltan etapas viajan por carriles debajo de los nodos (no los atraviesan)
+            carrilDeArista.clear();
+            carriles = 0;
+            yCarril = MARGEN + 22 + filasMax * NODO_ALTO + Math.max(0, filasMax - 1) * SEP_FILA + 20;
+            for (int[] a : aristas) {
+                if (etapas.getOrDefault(a[1], 1) - etapas.getOrDefault(a[0], 1) > 1) {
+                    carrilDeArista.put(a[0] + ">" + a[1], carriles++);
+                }
+            }
+            revalidate(); repaint();
+        }
+
+        @Override public Dimension getPreferredSize() {
+            return new Dimension(Math.max(300, MARGEN * 2 + columnas * NODO_ANCHO + Math.max(0, columnas - 1) * SEP_COL),
+                    Math.max(160, MARGEN * 2 + 22 + filasMax * NODO_ALTO + Math.max(0, filasMax - 1) * SEP_FILA
+                            + (carriles > 0 ? 20 + carriles * SEP_CARRIL : 0)));
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g.setColor(temaOscuro ? new Color(15, 23, 42) : new Color(248, 250, 252));
+            g.fillRect(0, 0, getWidth(), getHeight());
+            Color suave = temaOscuro ? new Color(148, 163, 184) : COLOR_NEUTRO;
+            if (posiciones.isEmpty()) {
+                g.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+                g.setColor(suave);
+                g.drawString("El grafo aparecerá aquí al registrar la primera dependencia.", 20, 40);
+                g.dispose();
+                return;
+            }
+            // Encabezados de columna (etapas)
+            g.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            for (int c = 0; c < columnas; c++) {
+                String t = c == 0 ? "ETAPA 1 · puede empezar ya" : "ETAPA " + (c + 1);
+                g.setColor(colorEtapa(c + 1));
+                g.drawString(t, MARGEN + c * (NODO_ANCHO + SEP_COL), MARGEN + 6);
+            }
+            // Flechas (curvas) previa -> siguiente
+            for (int[] a : aristas) {
+                Rectangle r1 = posiciones.get(a[0]), r2 = posiciones.get(a[1]);
+                if (r1 == null || r2 == null) continue;
+                int x1 = r1.x + r1.width, y1 = r1.y + r1.height / 2, x2 = r2.x - 4, y2 = r2.y + r2.height / 2;
+                Color c = colorEtapa(etapas.getOrDefault(a[0], 1));
+                g.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), 200));
+                g.setStroke(new BasicStroke(2f));
+                Integer carril = carrilDeArista.get(a[0] + ">" + a[1]);
+                if (carril == null) {                           // etapa contigua: curva directa
+                    int dx = Math.max(40, (x2 - x1) / 2);
+                    g.draw(new java.awt.geom.CubicCurve2D.Float(x1, y1, x1 + dx, y1, x2 - dx, y2, x2, y2));
+                } else {                                        // salta etapas: baja al carril, avanza y sube
+                    int yc = yCarril + carril * SEP_CARRIL, h = 36;
+                    java.awt.geom.Path2D.Float ruta = new java.awt.geom.Path2D.Float();
+                    ruta.moveTo(x1, y1);
+                    ruta.curveTo(x1 + h, y1, x1 + h / 2f, yc, x1 + h * 1.5f, yc);
+                    ruta.lineTo(x2 - h * 1.5f, yc);
+                    ruta.curveTo(x2 - h / 2f, yc, x2 - h, y2, x2, y2);
+                    g.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 1f, new float[]{7f, 5f}, 0f));
+                    g.draw(ruta);
+                    g.setStroke(new BasicStroke(2f));
+                }
+                g.fillPolygon(new int[]{x2 + 4, x2 - 7, x2 - 7}, new int[]{y2, y2 - 6, y2 + 6}, 3);
+            }
+            // Nodos
+            for (Map.Entry<Integer, Rectangle> e : posiciones.entrySet()) {
+                int id = e.getKey();
+                Rectangle r = e.getValue();
+                Color c = colorEtapa(etapas.getOrDefault(id, 1));
+                g.setColor(temaOscuro ? new Color(30, 41, 59) : Color.WHITE);
+                g.fillRoundRect(r.x, r.y, r.width, r.height, 12, 12);
+                g.setColor(c);
+                g.setStroke(new BasicStroke(2f));
+                g.drawRoundRect(r.x, r.y, r.width, r.height, 12, 12);
+                g.fillRoundRect(r.x, r.y, 6, r.height, 6, 6);
+
+                Tarea t = tareas.get(id);
+                g.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                g.setColor(temaOscuro ? Color.WHITE : COLOR_TEXTO_DARK);
+                g.drawString("#" + id, r.x + 14, r.y + 19);
+                g.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+                g.setColor(suave);
+                g.drawString(recortar(g, t == null ? "" : t.getTitulo(), r.width - 22), r.x + 14, r.y + 37);
+
+                Integer paso = pasos.get(id);                   // número de paso en el orden calculado
+                if (paso != null) {
+                    g.setFont(new Font("Segoe UI", Font.BOLD, 10));
+                    String ps = "Paso " + paso;
+                    int bw = g.getFontMetrics().stringWidth(ps) + 12;
+                    g.setColor(c);
+                    g.fillRoundRect(r.x + r.width - bw - 6, r.y + 6, bw, 17, 17, 17);
+                    g.setColor(Color.WHITE);
+                    g.drawString(ps, r.x + r.width - bw, r.y + 18);
+                }
+            }
+            g.dispose();
+        }
     }
 
     private JPanel crearCardTodas() {
@@ -2140,8 +2500,6 @@ public class GestionTareasView extends JFrame {
     public String getFiltroDeptoEmpSeleccionado() { return (String) cbFiltroDeptoEmp.getSelectedItem(); }
     public String getFiltroDeptoListaSeleccionado() { return (String) cbFiltroDeptoLista.getSelectedItem(); }
 
-    public String getGrafoTareaPreviaInput() { return txtGrafoTareaPrevia.getText().trim(); }
-    public String getGrafoTareaSiguienteInput() { return txtGrafoTareaSiguiente.getText().trim(); }
 
     public DefaultTableModel getModeloPila() { return modeloPila; }
     public DefaultTableModel getModeloCola() { return modeloCola; }
@@ -2199,7 +2557,6 @@ public class GestionTareasView extends JFrame {
     public JButton getBtnModoVentana() { return btnModoVentana; }
     public boolean isVentanaCompleta() { return esVentanaCompleta; }
 
-    public void setOrdenTopologico(String texto) { areaOrdenTopologico.setText(texto); }
 
     public void actualizarDashboard(int pilaAct, int pilaRes, int colaAct, int colaRes,
                                     int listaAct, int listaRes, Map<String, Integer> horas,

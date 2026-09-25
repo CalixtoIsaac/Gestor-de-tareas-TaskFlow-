@@ -150,6 +150,7 @@ public class GestionTareasController {
         // Eventos Grafo
         vista.getBtnAgregarDependencia().addActionListener(e -> agregarDependenciaGrafo());
         vista.getBtnCalcularOrdenTopologico().addActionListener(e -> calcularOrdenTopologico());
+        vista.getBtnLimpiarGrafo().addActionListener(e -> limpiarGrafo());
     }
 
         private void agregarTarea() {
@@ -478,31 +479,116 @@ public class GestionTareasController {
         if (recorridoActual != null) mostrarRecorrido(recorridoActual);
     }
 
+    // ==========================================================
+    // MÓDULO GRAFO DE DEPENDENCIAS
+    // ==========================================================
+
+    /** Tareas activas (Pila, Cola, Lista y Cola de Prioridad) indexadas por folio. */
+    private Map<Integer, Tarea> obtenerTareasActivasPorId() {
+        Map<Integer, Tarea> activas = new TreeMap<>();
+        for (Tarea t : obtenerTodasLasTareas()) activas.put(t.getId(), t);
+        return activas;
+    }
+
+    /**
+     * Convierte lo elegido/escrito ("#5 · Backup BD", "#5" o "5") en una tarea ACTIVA.
+     * Si no es un folio válido, no existe o ya finalizó, muestra el error y devuelve null.
+     */
+    private Tarea validarTareaActiva(String texto, String campo, Map<Integer, Tarea> activas) {
+        if (texto.isEmpty()) {
+            JOptionPane.showMessageDialog(vista, "Selecciona o escribe el folio de la " + campo + ".",
+                    "Dato faltante", JOptionPane.WARNING_MESSAGE);
+            return null;
+        }
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("^#?\\s*(\\d+)\\s*(·.*)?$").matcher(texto);
+        if (!m.find()) {
+            JOptionPane.showMessageDialog(vista, "\"" + texto + "\" no es un folio válido para la " + campo
+                    + ".\nEscribe solo el número (ej. 5) o elige una tarea de la lista.", "Folio inválido", JOptionPane.ERROR_MESSAGE);
+            return null;
+        }
+        int id;
+        try {
+            id = Integer.parseInt(m.group(1));
+        } catch (NumberFormatException ex) {
+            JOptionPane.showMessageDialog(vista, "El folio de la " + campo + " es demasiado grande.", "Folio inválido", JOptionPane.ERROR_MESSAGE);
+            return null;
+        }
+        Tarea activa = activas.get(id);
+        if (activa == null) {
+            // Distingue entre "ya finalizada" (existió) y "no existe"
+            boolean existio = gestorHashYAlgoritmos.buscarTareaPorHash(id) != null;
+            JOptionPane.showMessageDialog(vista,
+                    existio ? "La tarea #" + id + " ya fue finalizada (salió de su estructura).\nSolo se pueden usar tareas activas."
+                            : "No existe ninguna tarea con el folio #" + id + ".",
+                    "Tarea no válida para la " + campo, JOptionPane.ERROR_MESSAGE);
+            vista.logGUI("[GRAFO] Bloqueado: folio #" + id + (existio ? " ya finalizado." : " inexistente."));
+            return null;
+        }
+        return activa;
+    }
+
     private void agregarDependenciaGrafo() {
-        String previa = vista.getGrafoTareaPreviaInput();
-        String siguiente = vista.getGrafoTareaSiguienteInput();
-        if (previa.isEmpty() || siguiente.isEmpty()) {
-            JOptionPane.showMessageDialog(vista, "Ingrese el ID/Nombre de ambas tareas.", "Atención", JOptionPane.WARNING_MESSAGE);
+        Map<Integer, Tarea> activas = obtenerTareasActivasPorId();
+        Tarea previa = validarTareaActiva(vista.getGrafoTareaPreviaInput(), "tarea previa", activas);
+        if (previa == null) return;
+        Tarea siguiente = validarTareaActiva(vista.getGrafoTareaSiguienteInput(), "tarea siguiente", activas);
+        if (siguiente == null) return;
+
+        try {
+            grafoDependencias.agregarDependencia(previa.getId(), siguiente.getId());
+        } catch (IllegalArgumentException ex) {   // misma tarea, duplicada o ciclo
+            JOptionPane.showMessageDialog(vista, ex.getMessage(), "Dependencia no permitida", JOptionPane.ERROR_MESSAGE);
+            vista.logGUI("[GRAFO] Bloqueado: " + ex.getMessage());
             return;
         }
-        grafoDependencias.agregarDependencia(previa, siguiente);
-        vista.logGUI("[GRAFO] Dependencia agregada: " + previa + " -> " + siguiente);
-        JOptionPane.showMessageDialog(vista, "Dependencia vinculada: Tarea " + previa + " antecede a Tarea " + siguiente, "Grafo Dirigido", JOptionPane.INFORMATION_MESSAGE);
+        vista.logGUI("[GRAFO] Dependencia agregada: #" + previa.getId() + " → #" + siguiente.getId());
+        vista.limpiarSelectoresGrafo();
+        refrescarGrafo();
     }
 
     private void calcularOrdenTopologico() {
-        try {
-            List<String> orden = grafoDependencias.obtenerOrdenEjecucion();
-            StringBuilder sb = new StringBuilder("=== SECUENCIA LÓGICA DE EJECUCIÓN (ORDEN TOPOLÓGICO) ===\n\n");
-            for (int i = 0; i < orden.size(); i++) {
-                sb.append("Paso ").append(i + 1).append(": Tarea [").append(orden.get(i)).append("]\n");
-            }
-            vista.setOrdenTopologico(sb.toString());
-            vista.logGUI("[GRAFO] Secuencia de ejecución calculada exitosamente.");
-        } catch (Exception ex) {
-            vista.setOrdenTopologico("ERROR: " + ex.getMessage());
-            JOptionPane.showMessageDialog(vista, ex.getMessage(), "Error en Grafo", JOptionPane.ERROR_MESSAGE);
+        refrescarGrafo();
+        if (grafoDependencias.estaVacio()) {
+            JOptionPane.showMessageDialog(vista, "Aún no hay dependencias registradas.", "Orden de ejecución", JOptionPane.INFORMATION_MESSAGE);
+        } else {
+            vista.logGUI("[GRAFO] Orden de ejecución: " + grafoDependencias.calcularOrdenEjecucion().secuencia());
         }
+    }
+
+    private void limpiarGrafo() {
+        if (grafoDependencias.estaVacio()) return;
+        int r = JOptionPane.showConfirmDialog(vista, "¿Eliminar todas las dependencias registradas?",
+                "Limpiar grafo", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (r != JOptionPane.YES_OPTION) return;
+        grafoDependencias.limpiar();
+        vista.logGUI("[GRAFO] Se eliminaron todas las dependencias.");
+        refrescarGrafo();
+    }
+
+    /** Quita del grafo las tareas que ya no están activas y actualiza selectores, orden y dibujo. */
+    private void refrescarGrafo() {
+        Map<Integer, Tarea> activas = obtenerTareasActivasPorId();
+        for (Integer id : new ArrayList<>(grafoDependencias.getTareas())) {
+            if (!activas.containsKey(id)) {
+                grafoDependencias.eliminarTarea(id);
+                vista.logGUI("[GRAFO] Tarea #" + id + " finalizada: se retiró del grafo con sus dependencias.");
+            }
+        }
+        List<GestionTareasView.OpcionTarea> opciones = new ArrayList<>();
+        for (Tarea t : activas.values()) opciones.add(new GestionTareasView.OpcionTarea(t.getId(), t.getTitulo()));
+        vista.setTareasActivasGrafo(opciones);
+
+        GrafoDependencias.OrdenEjecucion orden;
+        try {
+            orden = grafoDependencias.calcularOrdenEjecucion();
+        } catch (IllegalStateException ex) {      // no debería ocurrir: los ciclos se bloquean al agregar
+            orden = new GrafoDependencias.OrdenEjecucion(List.of(), Map.of());
+            vista.logGUI("[GRAFO] " + ex.getMessage());
+        }
+        String info = grafoDependencias.estaVacio() ? "Sin dependencias registradas."
+                : grafoDependencias.getTareas().size() + " tareas conectadas  ·  "
+                  + grafoDependencias.getNumeroDependencias() + " dependencias  ·  cada flecha va de la tarea previa a la que depende de ella.";
+        vista.mostrarGrafo(activas, grafoDependencias.getDependencias(), orden.secuencia(), orden.etapas(), info);
     }
 
     private List<Tarea> obtenerTodasLasTareas() {
@@ -673,6 +759,9 @@ public class GestionTareasController {
         // Árbol de Búsquedas: refleja las tareas activas (nuevas se insertan, atendidas se eliminan)
         sincronizarArbolTareas();
         refrescarArbolBusquedas();
+
+        // Grafo: solo tareas activas (las finalizadas salen con sus dependencias)
+        refrescarGrafo();
 
         vista.actualizarDashboard(pilaUrgentes.getPila().size(), resueltasPila,
                 colaProgramadas.getCola().size(), resueltasCola,
