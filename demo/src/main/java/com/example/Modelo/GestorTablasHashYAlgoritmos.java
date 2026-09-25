@@ -67,4 +67,36 @@ public class GestorTablasHashYAlgoritmos {
         return null;
     }
 
+    // --- BÚSQUEDAS CON CONTEO DE COMPARACIONES (para la comparativa de rendimiento) ---
+    /** Resultado de una búsqueda: la tarea encontrada (o null) y cuántas comparaciones se hicieron. */
+    public record ResultadoBusqueda(Tarea tarea, int comparaciones) {}
+
+    /** Tabla hash: se calcula el hash del ID y se accede directo a su casilla (≈1 comparación). */
+    public ResultadoBusqueda buscarPorHashConConteo(int id) {
+        return new ResultadoBusqueda(mapaTareas.get(id), 1);
+    }
+
+    /** Búsqueda binaria sobre una lista ordenada por ID: descarta la mitad en cada comparación. */
+    public static ResultadoBusqueda busquedaBinariaConConteo(List<Tarea> tareasOrdenadasPorId, int idBuscado) {
+        int inicio = 0, fin = tareasOrdenadasPorId.size() - 1, comparaciones = 0;
+        while (inicio <= fin) {
+            int medio = inicio + (fin - inicio) / 2;
+            comparaciones++;
+            int comp = Integer.compare(tareasOrdenadasPorId.get(medio).getId(), idBuscado);
+            if (comp == 0) return new ResultadoBusqueda(tareasOrdenadasPorId.get(medio), comparaciones);
+            if (comp < 0) inicio = medio + 1;
+            else fin = medio - 1;
+        }
+        return new ResultadoBusqueda(null, comparaciones);
+    }
+
+    /** Búsqueda secuencial: revisa los elementos uno por uno hasta encontrarlo. */
+    public static ResultadoBusqueda busquedaSecuencialConConteo(List<Tarea> tareas, int idBuscado) {
+        int comparaciones = 0;
+        for (Tarea t : tareas) {
+            comparaciones++;
+            if (t.getId() == idBuscado) return new ResultadoBusqueda(t, comparaciones);
+        }
+        return new ResultadoBusqueda(null, comparaciones);
+    }
 }
