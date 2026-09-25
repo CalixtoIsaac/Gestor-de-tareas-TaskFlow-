@@ -127,6 +127,7 @@ public class GestionTareasController {
         // Eventos Árbol Binario (Empleados)
         vista.getBtnAgregarEmpleado().addActionListener(e -> agregarEmpleado());
         vista.getBtnBuscarEmpleadoId().addActionListener(e -> buscarEmpleadoBST());
+        vista.getBtnEliminarEmpleado().addActionListener(e -> eliminarEmpleado());
         vista.getBtnListarEmpleadoDepto().addActionListener(e -> listarEmpleadosDeptoBST());
         vista.getBtnMostrarTodosEmpleados().addActionListener(e -> mostrarTodosLosEmpleados());
         // Al seleccionar un empleado se despliega el detalle de sus tareas pendientes
@@ -259,6 +260,70 @@ public class GestionTareasController {
         vista.logGUI("[BST INSERT] Empleado registrado en Árbol Binario: " + nombre + " (" + id + ")");
         actualizarTablaEmpleados(listaEmpleadosMemoria);
         refrescarResponsablesDisponibles();
+    }
+
+    /**
+     * Elimina un empleado por ID (campo de texto o, si está vacío, la fila seleccionada en la tabla).
+     * Sus tareas activas quedan con Responsable Directo = null ("Sin Asignar"), de modo que en
+     * Distribución de Tareas se reasignan o, si el departamento queda sin personal, aparece la alerta roja.
+     */
+    private void eliminarEmpleado() {
+        String id = vista.getBuscarEmpleadoIdInput();
+        if (id.isEmpty()) {
+            String seleccionado = vista.getEmpleadoIdSeleccionado();
+            id = seleccionado == null ? "" : seleccionado.trim();
+        }
+        if (id.isEmpty()) {
+            JOptionPane.showMessageDialog(vista, "Escribe el ID del empleado o selecciónalo en la tabla.",
+                    "Eliminar empleado", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        Empleado empleado = arbolEmpleados.buscarPorId(id);          // búsqueda en el árbol binario
+        if (empleado == null) {
+            JOptionPane.showMessageDialog(vista, "ID de empleado no encontrado: " + id,
+                    "Eliminar empleado", JOptionPane.WARNING_MESSAGE);
+            vista.logGUI("[EMPLEADOS] Eliminación fallida: ID " + id + " no encontrado.");
+            return;
+        }
+
+        // Tareas activas que tiene asignadas
+        final String idEliminar = empleado.getId();
+        List<Tarea> asignadas = new ArrayList<>();
+        for (Tarea t : obtenerTodasLasTareas()) {
+            if (t.tieneResponsable() && idEliminar.equals(t.getResponsableDirecto().getId())) asignadas.add(t);
+        }
+
+        int respuesta = JOptionPane.showConfirmDialog(vista,
+                "¿Eliminar al empleado " + empleado.getNombre() + " (ID " + idEliminar + ", " + empleado.getDepartamento() + ")?"
+                        + (asignadas.isEmpty() ? "" : "\nSus " + asignadas.size() + " tarea(s) pendiente(s) quedarán \"Sin Asignar\"."),
+                "Confirmar eliminación", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (respuesta != JOptionPane.YES_OPTION) return;
+
+        // a) Quitarlo de todas las estructuras de empleados
+        arbolEmpleados.eliminar(idEliminar);
+        gestorHashYAlgoritmos.eliminarEmpleado(idEliminar);
+        listaEmpleadosMemoria.removeIf(e -> idEliminar.equals(e.getId()));
+        if (empleadosMostrados != listaEmpleadosMemoria) {                 // vista filtrada por departamento
+            empleadosMostrados.removeIf(e -> idEliminar.equals(e.getId()));
+        }
+
+        // b) Sus tareas quedan sin responsable
+        for (Tarea t : asignadas) t.setResponsableDirecto(null);
+
+        // Refrescar vista: tabla de empleados, selector de responsables y todas las tablas de tareas
+        vista.limpiarBuscarEmpleadoId();
+        refrescarResponsablesDisponibles();
+        actualizarTablasYMetricas();
+
+        boolean deptoSinPersonal = arbolEmpleados.obtenerPorDepartamento(empleado.getDepartamento()).isEmpty();
+        vista.logGUI("[EMPLEADOS] Eliminado " + empleado.getNombre() + " (ID " + idEliminar + "). "
+                + asignadas.size() + " tarea(s) quedaron Sin Asignar."
+                + (deptoSinPersonal ? " El departamento " + empleado.getDepartamento() + " se quedó sin personal." : ""));
+        JOptionPane.showMessageDialog(vista, "Empleado " + empleado.getNombre() + " eliminado.\n"
+                        + asignadas.size() + " tarea(s) quedaron \"Sin Asignar\"."
+                        + (deptoSinPersonal ? "\nAviso: " + empleado.getDepartamento() + " ya no tiene personal registrado." : ""),
+                "Empleado eliminado", JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void buscarEmpleadoBST() {

@@ -21,6 +21,10 @@ public class GestorTablasHashYAlgoritmos {
         mapaEmpleados.put(empleado.getId(), empleado);
     }
 
+    public Empleado eliminarEmpleado(String id) {
+        return mapaEmpleados.remove(id);
+    }
+
     public Empleado buscarEmpleadoPorHash(String id) {
         return mapaEmpleados.get(id);// 0(1)
     }

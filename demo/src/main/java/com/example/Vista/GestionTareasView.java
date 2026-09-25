@@ -123,7 +123,7 @@ public class GestionTareasView extends JFrame {
     // Componentes Árbol Binario (Empleados)
     private JTextField txtEmpleadoId, txtEmpleadoNombre, txtBuscarEmpleadoId;
     private JComboBox<String> cbEmpleadoDepto, cbFiltroDeptoEmp, cbFiltroDeptoLista;
-    private JButton btnAgregarEmpleado, btnBuscarEmpleadoId, btnListarEmpleadoDepto, btnMostrarTodosEmpleados;
+    private JButton btnAgregarEmpleado, btnBuscarEmpleadoId, btnListarEmpleadoDepto, btnMostrarTodosEmpleados, btnEliminarEmpleado;
     public static final String COL_PENDIENTES = "Tareas Pendientes";
     private DefaultTableModel modeloPendientesEmpleado;
     private JTable tablaPendientesEmpleado;
@@ -690,7 +690,11 @@ public class GestionTareasView extends JFrame {
         btnListarEmpleadoDepto = crearBotonEstilizado("Listar por Depto", COLOR_NEUTRO, Color.WHITE);
         btnMostrarTodosEmpleados = crearBotonEstilizado("Ver Todos", COLOR_GRIS_CLARO_BOTON, COLOR_TEXTO_DARK);
 
+        btnEliminarEmpleado = crearBotonEstilizado("Eliminar por ID", COLOR_PRIMARIO, Color.WHITE);
+        btnEliminarEmpleado.setToolTipText("Escribe el ID en el campo o selecciona un empleado en la tabla");
+        txtBuscarEmpleadoId.setToolTipText("ID del empleado a buscar o eliminar");
         panelAcciones.add(new JLabel("ID:")); panelAcciones.add(txtBuscarEmpleadoId); panelAcciones.add(btnBuscarEmpleadoId);
+        panelAcciones.add(btnEliminarEmpleado);
         panelAcciones.add(Box.createHorizontalStrut(15));
         panelAcciones.add(new JLabel("Depto:")); panelAcciones.add(cbFiltroDeptoEmp); panelAcciones.add(btnListarEmpleadoDepto);
         panelAcciones.add(Box.createHorizontalStrut(10));
@@ -2807,6 +2811,8 @@ public class GestionTareasView extends JFrame {
     public JButton getBtnBuscarEmpleadoId() { return btnBuscarEmpleadoId; }
     public JButton getBtnListarEmpleadoDepto() { return btnListarEmpleadoDepto; }
     public JButton getBtnMostrarTodosEmpleados() { return btnMostrarTodosEmpleados; }
+    public JButton getBtnEliminarEmpleado() { return btnEliminarEmpleado; }
+    public void limpiarBuscarEmpleadoId() { txtBuscarEmpleadoId.setText(""); }
     public JButton getBtnCalcularTiempoRecursivo() { return btnCalcularTiempoRecursivo; }
     public JButton getBtnDistribuirDivideVenceras() { return btnDistribuirDivideVenceras; }
     public JButton getBtnQuickSortUrgencia() { return btnQuickSortUrgencia; }

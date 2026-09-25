@@ -45,6 +45,33 @@ public class ArbolEmpleados {
         return buscarRec(actual.derecho, id);
     }
 
+    /** Elimina al empleado con ese ID del árbol. Devuelve el empleado eliminado o null si no existía. */
+    public Empleado eliminar(String id) {
+        Empleado encontrado = buscarPorId(id);
+        if (encontrado != null) raiz = eliminarRec(raiz, id);
+        return encontrado;
+    }
+
+    private Nodo eliminarRec(Nodo actual, String id) {
+        if (actual == null) return null;
+        int comp = id.compareTo(actual.empleado.getId());
+        if (comp < 0) {
+            actual.izquierdo = eliminarRec(actual.izquierdo, id);
+        } else if (comp > 0) {
+            actual.derecho = eliminarRec(actual.derecho, id);
+        } else {
+            // Caso 1 y 2: sin hijos o con un solo hijo -> se "sube" el hijo
+            if (actual.izquierdo == null) return actual.derecho;
+            if (actual.derecho == null) return actual.izquierdo;
+            // Caso 3: dos hijos -> se reemplaza por el sucesor inorden (mínimo del subárbol derecho)
+            Nodo sucesor = actual.derecho;
+            while (sucesor.izquierdo != null) sucesor = sucesor.izquierdo;
+            actual.empleado = sucesor.empleado;
+            actual.derecho = eliminarRec(actual.derecho, sucesor.empleado.getId());
+        }
+        return actual;
+    }
+
     public List<Empleado> obtenerPorDepartamento(String departamento) {
         List<Empleado> resultado = new ArrayList<>();
         buscarPorDeptRec(raiz, departamento, resultado);
