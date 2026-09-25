@@ -33,6 +33,11 @@ public class GestionTareasController {
 
     private int resueltasPila = 0, resueltasCola = 0, resueltasLista = 0;
 
+    // Persistencia: solo se permite guardar si la carga inicial terminó bien (evita sobrescribir la BD
+    // con datos incompletos). Cada cambio se guarda al momento, no solo al cerrar la ventana.
+    private boolean persistenciaActiva = false;
+    private boolean errorGuardadoMostrado = false;
+
     public GestionTareasController(GestionTareasView vista, PilaTareas pila, ColaTareas cola, ListaTareas lista) {
         this.vista = vista;
         this.pilaUrgentes = pila;
@@ -59,8 +64,14 @@ public class GestionTareasController {
             tareaRepositorio = new TareaRepositorio(conexionBD);
             empleadoRepositorio = new EmpleadoRepositorio(conexionBD);
             cargarDesdeBD();
-        } catch (SQLException ex) {
+            persistenciaActiva = true;
+        } catch (SQLException | RuntimeException ex) {
+            persistenciaActiva = false;
             vista.logGUI("[BD] No se pudieron cargar los datos: " + ex.getMessage());
+            JOptionPane.showMessageDialog(vista,
+                    "No se pudieron cargar los datos guardados:\n" + ex.getMessage()
+                            + "\n\nPara no borrar información, los cambios de esta sesión NO se guardarán en la base de datos.",
+                    "Base de datos", JOptionPane.WARNING_MESSAGE);
         }
     }
 
@@ -86,9 +97,20 @@ public class GestionTareasController {
         vista.logGUI("[BD] Datos cargados correctamente.");
     }
 
+    /** Guardado al cerrar la ventana (deja constancia en la consola). */
     public void guardarEnBD() {
-        if (tareaRepositorio == null || empleadoRepositorio == null) {
-            return;
+        if (guardarDatos()) vista.logGUI("[BD] Datos guardados correctamente.");
+    }
+
+    /** Guardado inmediato tras cada cambio (silencioso; solo avisa si falla). */
+    private void guardarCambios() {
+        guardarDatos();
+    }
+
+    /** Escribe tareas y empleados en la BD. Devuelve true si se guardó. */
+    private boolean guardarDatos() {
+        if (!persistenciaActiva || tareaRepositorio == null || empleadoRepositorio == null) {
+            return false;
         }
         try {
             Map<Integer, Tarea> tareasUnicas = new LinkedHashMap<>();
@@ -101,9 +123,17 @@ public class GestionTareasController {
                 empleadosUnicos.put(empleado.getId(), empleado);
             }
             empleadoRepositorio.guardarTodos(empleadosUnicos.values());
-            vista.logGUI("[BD] Datos guardados correctamente.");
+            errorGuardadoMostrado = false;
+            return true;
         } catch (SQLException ex) {
             vista.logGUI("[BD] No se pudieron guardar los datos: " + ex.getMessage());
+            ex.printStackTrace();
+            if (!errorGuardadoMostrado) {       // un solo aviso por racha de errores
+                errorGuardadoMostrado = true;
+                JOptionPane.showMessageDialog(vista, "No se pudieron guardar los datos en la base de datos:\n"
+                        + ex.getMessage(), "Base de datos", JOptionPane.ERROR_MESSAGE);
+            }
+            return false;
         }
     }
 
@@ -260,6 +290,7 @@ public class GestionTareasController {
         vista.logGUI("[BST INSERT] Empleado registrado en Árbol Binario: " + nombre + " (" + id + ")");
         actualizarTablaEmpleados(listaEmpleadosMemoria);
         refrescarResponsablesDisponibles();
+        guardarCambios();                                            // persistir de inmediato
     }
 
     /**
@@ -879,6 +910,9 @@ public class GestionTareasController {
                 colaProgramadas.getCola().size(), resueltasCola,
                 listaGeneral.getLista().size(), resueltasLista,
                 horasPorDepartamento, tareasPorDepartamento);
+
+        // Persistir de inmediato (altas, procesamiento, distribución, eliminación de empleados...)
+        guardarCambios();
     }
 
     // Fila estándar de las tablas Pila, Cola, Lista y Cola de Prioridad.
