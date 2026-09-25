@@ -22,6 +22,10 @@ public class GestionTareasController {
     private ArbolEmpleados arbolEmpleados;
     private GestorTablasHashYAlgoritmos gestorHashYAlgoritmos;
     private GrafoDependencias grafoDependencias;
+    private ArbolTareasABB arbolTareas;          // ABB de tareas activas por folio (módulo Búsquedas)
+    private String recorridoActual;              // "Inorden" / "Preorden" / "Postorden" o null
+    private List<Integer> rutaBusqueda = List.of();
+    private Integer folioEncontrado;
     private List<Empleado> listaEmpleadosMemoria;
     private List<Empleado> empleadosMostrados; // lo que hay en la tabla de Empleados (todos o filtro por depto)
     private TareaRepositorio tareaRepositorio;
@@ -39,6 +43,7 @@ public class GestionTareasController {
         this.arbolEmpleados = new ArbolEmpleados();
         this.gestorHashYAlgoritmos = new GestorTablasHashYAlgoritmos();
         this.grafoDependencias = new GrafoDependencias();
+        this.arbolTareas = new ArbolTareasABB();
         this.listaEmpleadosMemoria = new ArrayList<>();
         this.empleadosMostrados = listaEmpleadosMemoria;
 
@@ -134,9 +139,13 @@ public class GestionTareasController {
         vista.getBtnDistribuirDivideVenceras().addActionListener(e -> distribuirDivideVenceras());
 
         // Eventos Tablas Hash y Algoritmos
-        vista.getBtnBuscarHash().addActionListener(e -> buscarHashO1());
+        // Eventos Búsquedas: buscador unificado, recorridos y árbol
+        vista.getBtnBuscarFolio().addActionListener(e -> buscarPorFolio());
+        vista.getBtnInorden().addActionListener(e -> mostrarRecorrido("Inorden"));
+        vista.getBtnPreorden().addActionListener(e -> mostrarRecorrido("Preorden"));
+        vista.getBtnPostorden().addActionListener(e -> mostrarRecorrido("Postorden"));
+        vista.getBtnBalancearArbol().addActionListener(e -> balancearArbol());
         vista.getBtnQuickSortUrgencia().addActionListener(e -> ordenarQuickSort());
-        vista.getBtnBuscarBinaria().addActionListener(e -> buscarBinaria());
 
         // Eventos Grafo
         vista.getBtnAgregarDependencia().addActionListener(e -> agregarDependenciaGrafo());
@@ -274,17 +283,18 @@ public class GestionTareasController {
     private void calcularTiempoRecursivo() {
         List<Tarea> todas = obtenerTodasLasTareas();
         int tiempoTotal = ProcesadorRecursivo.calcularTiempoTotalEstimado(todas, 0);
-        String res = "=== CÁLCULO RECURSIVO DE TIEMPOS ESTIMADOS ===\n\n" +
-                "Total de tareas analizadas: " + todas.size() + "\n" +
-                "Tiempo Total Estimado acumulado: " + tiempoTotal + " horas.\n";
-        vista.setResultadoRecursivo(res);
+        String detalle = "Pila " + pilaUrgentes.getPila().size()
+                + "  ·  Cola " + colaProgramadas.getCola().size()
+                + "  ·  Lista " + listaGeneral.getLista().size()
+                + "  ·  Prioridad " + colaPrioridad.obtenerTareasOrdenadas().size();
+        vista.mostrarKpisTiempo(todas.size(), tiempoTotal, detalle);
         vista.logGUI("[RECURSIÓN] Cálculo de tiempo finalizado: " + tiempoTotal + " hrs.");
     }
 
     private void distribuirDivideVenceras() {
         List<Tarea> tareas = obtenerTodasLasTareas();
-        if (tareas.isEmpty() || listaEmpleadosMemoria.isEmpty()) {
-            JOptionPane.showMessageDialog(vista, "Debe haber al menos 1 tarea y 1 empleado registrado.", "Divide y Vencerás", JOptionPane.WARNING_MESSAGE);
+        if (tareas.isEmpty()) {
+            JOptionPane.showMessageDialog(vista, "No hay tareas activas para distribuir.", "Distribución", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
@@ -296,10 +306,12 @@ public class GestionTareasController {
 
         // Las tareas "Sin Asignar" quedan asignadas al empleado que les tocó en la distribución
         int nuevasAsignaciones = 0;
+        Set<Tarea> asignadas = new HashSet<>();
         for (Map.Entry<String, List<Tarea>> entrada : distribucion.entrySet()) {
             Empleado empleado = arbolEmpleados.buscarPorId(entrada.getKey());
             if (empleado == null) continue;
             for (Tarea t : entrada.getValue()) {
+                asignadas.add(t);
                 if (!t.tieneResponsable()) {
                     t.setResponsableDirecto(empleado);
                     nuevasAsignaciones++;
@@ -307,59 +319,40 @@ public class GestionTareasController {
             }
         }
 
-        StringBuilder sb = new StringBuilder("=== DISTRIBUCIÓN EQUILIBRADA DE TAREAS (DIVIDE Y VENCERÁS) ===\n\n");
+        // REGLA DE ALERTA: departamentos con tareas pendientes pero sin personal registrado
         Set<String> departamentosSinPersonal = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
+        int tareasSinPersonal = 0;
         for (Tarea tarea : tareas) {
-            boolean asignada = false;
-            for (List<Tarea> tareasAsignadas : distribucion.values()) {
-                if (tareasAsignadas.contains(tarea)) {
-                    asignada = true;
-                    break;
-                }
-            }
-            if (!asignada) {
+            if (!asignadas.contains(tarea)) {
                 departamentosSinPersonal.add(tarea.getDepartamento());
+                tareasSinPersonal++;
             }
         }
 
-        if (!departamentosSinPersonal.isEmpty()) {
-            sb.append("AVISO: No hay personal disponible en: ")
-                    .append(String.join(", ", departamentosSinPersonal))
-                    .append(". Sus tareas no fueron asignadas.\n\n");
+        // Un grupo por empleado (sin duplicados), ordenado por departamento y nombre;
+        // dentro de cada grupo, las tareas por fecha de entrega más próxima.
+        Map<String, Empleado> empleadosUnicos = new LinkedHashMap<>();
+        for (Empleado emp : listaEmpleadosMemoria) empleadosUnicos.putIfAbsent(emp.getId(), emp);
+        List<Empleado> ordenados = new ArrayList<>(empleadosUnicos.values());
+        ordenados.sort(Comparator.comparing(Empleado::getDepartamento, String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(Empleado::getNombre, String.CASE_INSENSITIVE_ORDER));
+
+        List<GestionTareasView.GrupoDistribucion> grupos = new ArrayList<>();
+        for (Empleado emp : ordenados) {
+            List<Tarea> suyas = new ArrayList<>(distribucion.getOrDefault(emp.getId(), List.of()));
+            suyas.sort(Comparator.comparing(Tarea::getFechaEntrega));
+            List<GestionTareasView.FilaAsignacion> filas = new ArrayList<>();
+            for (Tarea t : suyas) filas.add(new GestionTareasView.FilaAsignacion(t, conResponsablePrevio.contains(t)));
+            grupos.add(new GestionTareasView.GrupoDistribucion(emp, filas));
         }
 
-        for (Empleado emp : listaEmpleadosMemoria) {
-            sb.append("Empleado: ").append(emp.getNombre()).append(" [ID: ").append(emp.getId()).append("] - Depto: ").append(emp.getDepartamento()).append("\n");
-            List<Tarea> asignadas = distribucion.get(emp.getId());
-            if (asignadas != null && !asignadas.isEmpty()) {
-                for (Tarea t : asignadas) {
-                    sb.append("   -> ").append(t.toString())
-                            .append(conResponsablePrevio.contains(t) ? "  [Responsable directo]" : "  [Asignada en esta distribución]")
-                            .append("\n");
-                }
-            } else {
-                sb.append("   -> Sin tareas asignadas.\n");
-            }
-            sb.append("\n");
-        }
-        vista.setResultadoRecursivo(sb.toString());
-        vista.logGUI("[DIVIDE Y VENCERÁS] Distribución realizada entre " + listaEmpleadosMemoria.size() + " empleados. "
+        vista.mostrarDistribucion(grupos, departamentosSinPersonal, tareasSinPersonal, nuevasAsignaciones);
+        vista.logGUI("[DIVIDE Y VENCERÁS] Distribución realizada entre " + ordenados.size() + " empleados. "
                 + nuevasAsignaciones + " tarea(s) sin asignar recibieron responsable.");
-        actualizarTablasYMetricas();
-    }
-
-    private void buscarHashO1() {
-        try {
-            int id = Integer.parseInt(vista.getBuscarHashIdInput());
-            Tarea t = gestorHashYAlgoritmos.buscarTareaPorHash(id);
-            if (t != null) {
-                JOptionPane.showMessageDialog(vista, "Tarea Encontrada mediante HashMap (O(1)):\n" + t.toString(), "Tabla Hash", JOptionPane.INFORMATION_MESSAGE);
-            } else {
-                JOptionPane.showMessageDialog(vista, "No existe tarea registrada con ID: " + id, "Tabla Hash", JOptionPane.WARNING_MESSAGE);
-            }
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(vista, "Ingrese un ID entero válido.", "Atención", JOptionPane.WARNING_MESSAGE);
+        if (!departamentosSinPersonal.isEmpty()) {
+            vista.logGUI("[ALERTA] Sin personal en: " + String.join(", ", departamentosSinPersonal));
         }
+        actualizarTablasYMetricas();
     }
 
     private void ordenarQuickSort() {
@@ -375,21 +368,114 @@ public class GestionTareasController {
         vista.logGUI("[QUICKSORT] Tareas ordenadas por urgencia.");
     }
 
-    private void buscarBinaria() {
-        try {
-            int id = Integer.parseInt(vista.getBuscarBinariaIdInput());
-            List<Tarea> lista = obtenerTodasLasTareas();
-            lista.sort(Comparator.comparingInt(Tarea::getId));
+    // ==========================================================
+    // MÓDULO BÚSQUEDAS
+    // ==========================================================
 
-            Tarea t = GestorTablasHashYAlgoritmos.busquedaBinariaPorId(lista, id);
-            if (t != null) {
-                JOptionPane.showMessageDialog(vista, "Tarea Encontrada mediante Búsqueda Binaria:\n" + t.toString(), "Búsqueda Binaria", JOptionPane.INFORMATION_MESSAGE);
-            } else {
-                JOptionPane.showMessageDialog(vista, "No se encontró la tarea con ID: " + id, "Búsqueda Binaria", JOptionPane.WARNING_MESSAGE);
-            }
-        } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(vista, "Ingrese un ID numérico.", "Atención", JOptionPane.WARNING_MESSAGE);
+    /** Busca un folio con los 4 métodos y muestra el detalle + la comparativa de comparaciones. */
+    private void buscarPorFolio() {
+        int folio;
+        try {
+            folio = Integer.parseInt(vista.getFolioBuscado());
+        } catch (NumberFormatException ex) {
+            JOptionPane.showMessageDialog(vista, "Ingrese un folio (ID) numérico válido.", "Atención", JOptionPane.WARNING_MESSAGE);
+            return;
         }
+
+        List<Tarea> activas = obtenerTodasLasTareas();          // Pila, Cola, Lista y Cola de Prioridad
+        List<Tarea> ordenadasPorId = new ArrayList<>(activas);
+        ordenadasPorId.sort(Comparator.comparingInt(Tarea::getId));
+
+        GestorTablasHashYAlgoritmos.ResultadoBusqueda porHash = gestorHashYAlgoritmos.buscarPorHashConConteo(folio);
+        ArbolTareasABB.ResultadoBusquedaABB porArbol = arbolTareas.buscarConConteo(folio);
+        GestorTablasHashYAlgoritmos.ResultadoBusqueda porBinaria =
+                GestorTablasHashYAlgoritmos.busquedaBinariaConConteo(ordenadasPorId, folio);
+        GestorTablasHashYAlgoritmos.ResultadoBusqueda porSecuencial =
+                GestorTablasHashYAlgoritmos.busquedaSecuencialConConteo(activas, folio);
+
+        // La tabla hash guarda también tareas ya atendidas: se indica si sigue activa o no
+        Tarea encontrada = porArbol.tarea() != null ? porArbol.tarea() : porHash.tarea();
+        String estado = null;
+        if (encontrada != null) {
+            estado = porArbol.tarea() != null ? "Activa" : "Ya atendida";
+        }
+
+        List<GestionTareasView.MetodoBusqueda> metodos = List.of(
+                new GestionTareasView.MetodoBusqueda("Tabla hash", "O(1) · acceso directo", porHash.comparaciones(), porHash.tarea() != null),
+                new GestionTareasView.MetodoBusqueda("Árbol (ABB)", "O(log n) · altura " + arbolTareas.altura(), porArbol.comparaciones(), porArbol.tarea() != null),
+                new GestionTareasView.MetodoBusqueda("Búsqueda binaria", "O(log n) · lista ordenada", porBinaria.comparaciones(), porBinaria.tarea() != null),
+                new GestionTareasView.MetodoBusqueda("Búsqueda secuencial", "O(n) · uno por uno", porSecuencial.comparaciones(), porSecuencial.tarea() != null));
+
+        vista.mostrarResultadoBusqueda(folio, encontrada, estado, metodos, activas.size());
+        rutaBusqueda = porArbol.ruta();
+        folioEncontrado = porArbol.tarea() != null ? folio : null;
+        vista.resaltarRutaArbol(rutaBusqueda, folioEncontrado);
+        vista.logGUI("[BÚSQUEDA] Folio " + folio + (encontrada != null ? " encontrado" : " no encontrado")
+                + " | Hash: " + porHash.comparaciones() + ", ABB: " + porArbol.comparaciones()
+                + ", Binaria: " + porBinaria.comparaciones() + ", Secuencial: " + porSecuencial.comparaciones() + " comparaciones.");
+    }
+
+    private void mostrarRecorrido(String tipo) {
+        recorridoActual = tipo;
+        List<Integer> secuencia;
+        String explicacion;
+        switch (tipo) {
+            case "Preorden" -> {
+                secuencia = arbolTareas.preorden();
+                explicacion = "Preorden (Raíz → Izquierda → Derecha): visita primero cada raíz y después sus subárboles. "
+                        + "El primer folio siempre es la raíz del árbol; sirve para copiar o reconstruir el árbol con la misma forma.";
+            }
+            case "Postorden" -> {
+                secuencia = arbolTareas.postorden();
+                explicacion = "Postorden (Izquierda → Derecha → Raíz): visita los hijos antes que el padre, así que la raíz "
+                        + "queda al final. Es el orden que se usa para eliminar el árbol empezando por las hojas.";
+            }
+            default -> {
+                secuencia = arbolTareas.inorden();
+                explicacion = "Inorden (Izquierda → Raíz → Derecha): en un Árbol Binario de Búsqueda devuelve los folios "
+                        + "ordenados de menor a mayor, porque todo lo menor queda a la izquierda y todo lo mayor a la derecha.";
+            }
+        }
+        vista.mostrarRecorrido(tipo, explicacion, secuencia);
+        vista.logGUI("[RECORRIDO " + tipo.toUpperCase() + "] " + secuencia);
+    }
+
+    private void balancearArbol() {
+        if (arbolTareas.estaVacio()) {
+            JOptionPane.showMessageDialog(vista, "No hay tareas activas en el árbol.", "Balancear árbol", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        int[] alturas = arbolTareas.balancear();
+        rutaBusqueda = List.of();          // la forma cambió: la ruta anterior ya no aplica
+        folioEncontrado = null;
+        refrescarArbolBusquedas();
+        vista.logGUI("[DIVIDE Y VENCERÁS] Árbol balanceado: altura " + alturas[0] + " → " + alturas[1] + " niveles.");
+    }
+
+    /** Mantiene el ABB igual a las tareas activas: inserta las nuevas y elimina las ya atendidas. */
+    private void sincronizarArbolTareas() {
+        Map<Integer, Tarea> activas = new TreeMap<>();            // TreeMap: se insertan en orden de folio
+        for (Tarea t : obtenerTodasLasTareas()) activas.put(t.getId(), t);
+        for (Integer id : arbolTareas.inorden()) {
+            if (!activas.containsKey(id)) arbolTareas.eliminar(id);
+        }
+        for (Tarea t : activas.values()) {
+            if (!arbolTareas.contiene(t.getId())) arbolTareas.insertar(t);
+        }
+    }
+
+    private void refrescarArbolBusquedas() {
+        String info;
+        if (arbolTareas.estaVacio()) {
+            info = "Sin tareas activas.";
+        } else {
+            int altura = arbolTareas.altura(), minima = arbolTareas.alturaMinima();
+            info = arbolTareas.getTamano() + " nodos  ·  altura " + altura + " niveles  ·  mínima posible " + minima
+                    + (altura > minima ? "  ·  Desbalanceado: usa \"Balancear árbol\" para reducir comparaciones."
+                                       : "  ·  Árbol balanceado.");
+        }
+        vista.actualizarArbol(arbolTareas.getRaiz(), info, rutaBusqueda, folioEncontrado);
+        if (recorridoActual != null) mostrarRecorrido(recorridoActual);
     }
 
     private void agregarDependenciaGrafo() {
@@ -583,6 +669,10 @@ public class GestionTareasController {
 
         // Los conteos de pendientes dependen de las tareas: se refrescan junto con las demás tablas
         actualizarTablaEmpleados(empleadosMostrados);
+
+        // Árbol de Búsquedas: refleja las tareas activas (nuevas se insertan, atendidas se eliminan)
+        sincronizarArbolTareas();
+        refrescarArbolBusquedas();
 
         vista.actualizarDashboard(pilaUrgentes.getPila().size(), resueltasPila,
                 colaProgramadas.getCola().size(), resueltasCola,

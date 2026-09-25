@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import javax.swing.event.ListSelectionListener;
 
+import com.example.Modelo.ArbolTareasABB;
 import com.example.Modelo.Empleado;
 import com.example.Modelo.Tarea;
 
@@ -33,6 +34,14 @@ public class GestionTareasView extends JFrame {
     private static final Color COLOR_VERDE = new Color(22, 163, 74);
     private static final Color COLOR_NEUTRO = new Color(71, 85, 105);
     private static final Color COLOR_ROJO_OSCURO_TEMA = new Color(248, 113, 113);
+
+    // Paleta de identidad (la misma del Menú Principal: tarjetas y gráfica por departamento)
+    private static final Color[] PALETA_MENU = {new Color(30, 64, 175), new Color(37, 99, 235),
+            new Color(79, 70, 229), new Color(91, 33, 182)};
+    // Variantes más claras de la misma paleta para que se lean sobre el fondo del modo oscuro
+    private static final Color[] PALETA_MENU_OSCURO = {new Color(59, 130, 246), new Color(96, 165, 250),
+            new Color(129, 140, 248), new Color(167, 139, 250)};
+    private static final Color COLOR_AMARILLO_DESTACADO = new Color(250, 204, 21);
 
     // Columnas compartidas por todas las tablas de tareas
     public static final String COL_RESPONSABLE = "Responsable Directo";
@@ -105,11 +114,32 @@ public class GestionTareasView extends JFrame {
 
     // Componentes Recursividad & Divide y Vencerás
     private JButton btnCalcularTiempoRecursivo, btnDistribuirDivideVenceras;
-    private JTextArea areaResultadoDistribuicion;
+    // Resultados visuales (tarjetas KPI, alerta y tabla por empleado)
+    private static final String TEMA_PROPIO = "tema.propio"; // componentes que se pintan solos según el tema
+    private KpiCard kpiTotalTareas, kpiTiempoTotal;
+    private AlertaPanel alertaSinPersonal;
+    private JLabel lblResumenDistribucion;
+    private JPanel panelGruposDistribucion;
 
-    // Componentes Tablas Hash, QuickSort y Búsqueda Binaria
-    private JTextField txtBuscarHashId, txtBuscarBinariaId;
-    private JButton btnBuscarHash, btnQuickSortUrgencia, btnBuscarBinaria;
+    /** Una tarea dentro de la distribución y si ya tenía Responsable Directo antes de distribuir. */
+    public record FilaAsignacion(Tarea tarea, boolean responsablePrevio) {}
+    /** Tareas asignadas a un empleado en la distribución. */
+    public record GrupoDistribucion(Empleado empleado, List<FilaAsignacion> filas) {}
+
+    // Componentes del módulo Búsquedas (buscador unificado, recorridos y árbol ABB)
+    private JButton btnQuickSortUrgencia;
+    private JTextField txtBuscarFolio;
+    private JButton btnBuscarFolio, btnBalancearArbol;
+    private JToggleButton btnInorden, btnPreorden, btnPostorden;
+    private DetalleTareaCard detalleBusqueda;
+    private GraficaComparaciones graficaComparaciones;
+    private JTextArea txtExplicacionRecorrido;
+    private SecuenciaFolios secuenciaRecorrido;
+    private ArbolVisual arbolVisual;
+    private JLabel lblInfoArbol;
+
+    /** Una barra de la comparativa: método, complejidad, comparaciones realizadas y si encontró la tarea. */
+    public record MetodoBusqueda(String nombre, String complejidad, int comparaciones, boolean encontrado) {}
 
     // Componentes Grafo de Dependencias
     private JTextField txtGrafoTareaPrevia, txtGrafoTareaSiguiente;
@@ -658,7 +688,7 @@ public class GestionTareasView extends JFrame {
         return panel;
     }
 
-    // --- Card Recursividad y Divide y Vencerás ---
+    // --- Card Cálculos y Distribución (tarjetas KPI + alerta + tabla por empleado) ---
     private JPanel crearCardRecursivo() {
         JPanel panel = new JPanel(new BorderLayout(10, 10)); panel.setOpaque(false);
 
@@ -667,38 +697,857 @@ public class GestionTareasView extends JFrame {
         btnDistribuirDivideVenceras = crearBotonEstilizado("Distribuir Tareas entre Empleados", COLOR_VERDE, Color.WHITE);
         panelBotones.add(btnCalcularTiempoRecursivo); panelBotones.add(btnDistribuirDivideVenceras);
 
-        areaResultadoDistribuicion = new JTextArea(15, 70);
-        areaResultadoDistribuicion.setEditable(false);
-        areaResultadoDistribuicion.setFont(new Font("Consolas", Font.PLAIN, 12));
-        areaResultadoDistribuicion.setBackground(new Color(15, 23, 42));
-        areaResultadoDistribuicion.setForeground(new Color(56, 189, 248));
-        JScrollPane scroll = new JScrollPane(areaResultadoDistribuicion);
-        scroll.setBorder(crearBordeSeccion(" Resultados de Cálculos y Distribución de Tareas ", 14));
+        // Alerta roja (oculta hasta que haya departamentos sin personal)
+        alertaSinPersonal = new AlertaPanel();
+        alertaSinPersonal.setVisible(false);
 
-        panel.add(panelBotones, BorderLayout.NORTH); panel.add(scroll, BorderLayout.CENTER);
+        // Tarjetas de métricas
+        kpiTotalTareas = new KpiCard("TOTAL DE TAREAS ANALIZADAS", COLOR_PRIMARIO, new Color(96, 165, 250));
+        kpiTiempoTotal = new KpiCard("TIEMPO TOTAL ESTIMADO ACUMULADO", COLOR_VERDE, new Color(74, 222, 128));
+        JPanel filaKpis = new JPanel(new GridLayout(1, 2, 12, 0)); filaKpis.setOpaque(false);
+        filaKpis.add(kpiTotalTareas); filaKpis.add(kpiTiempoTotal);
+
+        JPanel superior = new JPanel(); superior.setOpaque(false);
+        superior.setLayout(new BoxLayout(superior, BoxLayout.Y_AXIS));
+        alertaSinPersonal.setAlignmentX(Component.LEFT_ALIGNMENT);
+        filaKpis.setAlignmentX(Component.LEFT_ALIGNMENT);
+        superior.add(alertaSinPersonal);
+        superior.add(Box.createVerticalStrut(10));
+        superior.add(filaKpis);
+
+        // Distribución organizada por empleado
+        lblResumenDistribucion = new JLabel("Pulsa \"Distribuir Tareas entre Empleados\" para ver cómo queda repartido el trabajo.");
+        lblResumenDistribucion.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        lblResumenDistribucion.setBorder(new EmptyBorder(2, 4, 6, 4));
+
+        panelGruposDistribucion = new PanelAnchoViewport();
+        panelGruposDistribucion.setLayout(new BoxLayout(panelGruposDistribucion, BoxLayout.Y_AXIS));
+        panelGruposDistribucion.setBackground(COLOR_TARJETA);
+        JScrollPane scrollGrupos = new JScrollPane(panelGruposDistribucion);
+        scrollGrupos.setBorder(null);
+        scrollGrupos.getVerticalScrollBar().setUnitIncrement(16);
+
+        JPanel panelDistribucion = new JPanel(new BorderLayout()); panelDistribucion.setBackground(COLOR_TARJETA);
+        panelDistribucion.setBorder(crearBordeSeccion(" Distribución de Tareas por Empleado ", 14));
+        panelDistribucion.add(lblResumenDistribucion, BorderLayout.NORTH);
+        panelDistribucion.add(scrollGrupos, BorderLayout.CENTER);
+
+        JPanel centro = new JPanel(new BorderLayout(0, 12)); centro.setOpaque(false);
+        centro.add(superior, BorderLayout.NORTH);
+        centro.add(panelDistribucion, BorderLayout.CENTER);
+
+        panel.add(panelBotones, BorderLayout.NORTH); panel.add(centro, BorderLayout.CENTER);
         return panel;
     }
 
-    // --- Card Tablas Hash, QuickSort y Búsqueda Binaria ---
+    /** Actualiza las tarjetas KPI del cálculo de tiempo total. */
+    public void mostrarKpisTiempo(int totalTareas, int horasTotales, String detalleTareas) {
+        kpiTotalTareas.setDatos(String.format("%,d", totalTareas), totalTareas == 1 ? "tarea activa" : "tareas activas", detalleTareas);
+        String promedio = totalTareas == 0 ? "0" : String.format("%.1f", horasTotales / (double) totalTareas);
+        kpiTiempoTotal.setDatos(String.format("%,d", horasTotales), horasTotales == 1 ? "hora" : "horas",
+                String.format("≈ %.1f jornadas de 8 h  ·  promedio %s h por tarea", horasTotales / 8.0, promedio));
+    }
+
+    /**
+     * Pinta la distribución: alerta roja si hay departamentos sin personal y una tabla por empleado
+     * con sus tareas asignadas.
+     */
+    public void mostrarDistribucion(List<GrupoDistribucion> grupos, java.util.Collection<String> departamentosSinPersonal,
+                                    int tareasSinPersonal, int nuevasAsignaciones) {
+        // Alerta
+        if (departamentosSinPersonal.isEmpty()) {
+            alertaSinPersonal.setVisible(false);
+        } else {
+            alertaSinPersonal.setMensaje("ATENCIÓN: No hay personal disponible en los siguientes departamentos: "
+                    + String.join(", ", departamentosSinPersonal) + ". Sus tareas no fueron asignadas ("
+                    + tareasSinPersonal + (tareasSinPersonal == 1 ? " tarea)." : " tareas)."));
+            alertaSinPersonal.setVisible(true);
+        }
+
+        // Resumen
+        int totalAsignadas = 0;
+        for (GrupoDistribucion g : grupos) totalAsignadas += g.filas().size();
+        lblResumenDistribucion.setText(grupos.size() + " empleado(s)  ·  " + totalAsignadas + " tarea(s) asignada(s)  ·  "
+                + nuevasAsignaciones + " asignada(s) en esta distribución"
+                + (tareasSinPersonal > 0 ? "  ·  " + tareasSinPersonal + " sin personal disponible" : ""));
+
+        // Secciones por empleado
+        panelGruposDistribucion.removeAll();
+        if (grupos.isEmpty()) {
+            JLabel vacio = new JLabel("No hay empleados registrados en los departamentos con tareas.");
+            vacio.setBorder(new EmptyBorder(12, 8, 12, 8));
+            panelGruposDistribucion.add(vacio);
+        }
+        for (GrupoDistribucion grupo : grupos) {
+            JPanel seccion = crearSeccionEmpleado(grupo);
+            seccion.setAlignmentX(Component.LEFT_ALIGNMENT);
+            panelGruposDistribucion.add(seccion);
+            panelGruposDistribucion.add(Box.createVerticalStrut(10));
+        }
+        aplicarTemaGeneral(); // los componentes recién creados toman el tema actual (claro/oscuro)
+        panelGruposDistribucion.revalidate();
+        panelGruposDistribucion.repaint();
+    }
+
+    private JPanel crearSeccionEmpleado(GrupoDistribucion grupo) {
+        Empleado emp = grupo.empleado();
+        int horas = 0;
+        for (FilaAsignacion f : grupo.filas()) horas += f.tarea().getTiempoEstimado();
+
+        EncabezadoEmpleado encabezado = new EncabezadoEmpleado(emp.getNombre(),
+                "ID " + emp.getId() + "  ·  " + emp.getDepartamento(),
+                grupo.filas().size() + (grupo.filas().size() == 1 ? " tarea" : " tareas"), horas + " h de carga");
+
+        JPanel seccion = new JPanel(new BorderLayout()) {
+            @Override public Dimension getMaximumSize() { return new Dimension(Integer.MAX_VALUE, getPreferredSize().height); }
+        };
+        seccion.setBackground(COLOR_TARJETA);
+        seccion.setBorder(BorderFactory.createLineBorder(COLOR_BORDE));
+        seccion.add(encabezado, BorderLayout.NORTH);
+
+        if (grupo.filas().isEmpty()) {
+            JLabel sinTareas = new JLabel("Sin tareas asignadas.");
+            sinTareas.setFont(new Font("Segoe UI", Font.ITALIC, 12));
+            sinTareas.setBorder(new EmptyBorder(8, 14, 10, 14));
+            seccion.add(sinTareas, BorderLayout.CENTER);
+            return seccion;
+        }
+
+        DefaultTableModel modelo = new DefaultTableModel(new String[]{"ID", "Título", "Departamento", "Urgencia",
+                "Tiempo Est.", COL_FECHA_ENTREGA, "Estructura", "Asignación"}, 0);
+        for (FilaAsignacion f : grupo.filas()) {
+            Tarea t = f.tarea();
+            modelo.addRow(new Object[]{t.getId(), t.getTitulo(), t.getDepartamento(), t.getUrgencia(),
+                    t.getTiempoEstimado() + " h", t.getFechaEntrega(), t.getTipoEstructura(),
+                    f.responsablePrevio() ? "Directa" : "Nueva"});
+        }
+        JTable tabla = crearTablaEstilizada(modelo);
+        tabla.getColumnModel().getColumn(3).setCellRenderer(new UrgenciaBadgeRenderer());
+        tabla.getColumnModel().getColumn(3).setPreferredWidth(105);
+        tabla.getColumnModel().getColumn(1).setPreferredWidth(190);
+        tabla.getColumnModel().getColumn(4).setPreferredWidth(80);
+        tabla.getColumnModel().getColumn(7).setPreferredWidth(80);
+        tabla.getColumnModel().getColumn(7).setHeaderValue("Asignación");
+        tabla.setToolTipText("Asignación: Directa = ya tenía Responsable Directo; Nueva = asignada en esta distribución");
+
+        JPanel contenedorTabla = new JPanel(new BorderLayout());
+        contenedorTabla.setBorder(new EmptyBorder(0, 10, 10, 10));
+        contenedorTabla.add(tabla.getTableHeader(), BorderLayout.NORTH);
+        contenedorTabla.add(tabla, BorderLayout.CENTER);
+        seccion.add(contenedorTabla, BorderLayout.CENTER);
+        return seccion;
+    }
+
+    /** Panel que se ajusta al ancho del scroll (para que las tablas no queden cortadas). */
+    private static class PanelAnchoViewport extends JPanel implements Scrollable {
+        @Override public Dimension getPreferredScrollableViewportSize() { return getPreferredSize(); }
+        @Override public int getScrollableUnitIncrement(Rectangle r, int o, int d) { return 16; }
+        @Override public int getScrollableBlockIncrement(Rectangle r, int o, int d) { return r.height; }
+        @Override public boolean getScrollableTracksViewportWidth() { return true; }
+        @Override public boolean getScrollableTracksViewportHeight() { return false; }
+    }
+
+    /** Tarjeta de métrica: título pequeño, número destacado con su unidad y una línea de detalle. */
+    private class KpiCard extends JComponent {
+        private final String titulo;
+        private final Color acentoClaro, acentoOscuro;
+        private String valor = "—", unidad = "", detalle = "Pulsa \"Calcular Tiempo Total Estimado\"";
+
+        KpiCard(String titulo, Color acentoClaro, Color acentoOscuro) {
+            this.titulo = titulo; this.acentoClaro = acentoClaro; this.acentoOscuro = acentoOscuro;
+            putClientProperty(TEMA_PROPIO, true);
+            setPreferredSize(new Dimension(300, 112));
+        }
+
+        void setDatos(String valor, String unidad, String detalle) {
+            this.valor = valor; this.unidad = unidad; this.detalle = detalle;
+            repaint();
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            Color acento = temaOscuro ? acentoOscuro : acentoClaro;
+            int w = getWidth(), h = getHeight();
+            g.setColor(temaOscuro ? new Color(30, 41, 59) : Color.WHITE);
+            g.fillRoundRect(0, 0, w - 1, h - 1, 14, 14);
+            g.setColor(temaOscuro ? new Color(71, 85, 105) : COLOR_BORDE);
+            g.drawRoundRect(0, 0, w - 1, h - 1, 14, 14);
+            g.setColor(acento);
+            g.fillRoundRect(0, 0, 6, h - 1, 6, 6);
+
+            g.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            g.setColor(temaOscuro ? new Color(148, 163, 184) : COLOR_NEUTRO);
+            g.drawString(titulo, 22, 26);
+
+            g.setFont(new Font("Segoe UI", Font.BOLD, 34));
+            g.setColor(acento);
+            g.drawString(valor, 22, 66);
+            int xUnidad = 22 + g.getFontMetrics().stringWidth(valor) + 8;
+            g.setFont(new Font("Segoe UI", Font.BOLD, 14));
+            g.setColor(temaOscuro ? Color.WHITE : COLOR_TEXTO_DARK);
+            g.drawString(unidad, xUnidad, 66);
+
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+            g.setColor(temaOscuro ? new Color(203, 213, 225) : COLOR_NEUTRO);
+            g.drawString(detalle, 22, 92);
+            g.dispose();
+        }
+    }
+
+    /** Alerta destacada en rojo con ícono de advertencia dibujado (no depende de fuentes con emoji). */
+    private class AlertaPanel extends JPanel {
+        private final JTextArea texto = new JTextArea() {
+            @Override public Color getForeground() { return temaOscuro ? new Color(254, 202, 202) : new Color(185, 28, 28); }
+        };
+
+        AlertaPanel() {
+            super(new BorderLayout(14, 0));
+            putClientProperty(TEMA_PROPIO, true);
+            setOpaque(false);
+            setBorder(new EmptyBorder(14, 16, 14, 16));
+            JComponent icono = new JComponent() {
+                { setPreferredSize(new Dimension(38, 34)); }
+                @Override protected void paintComponent(Graphics graphics) {
+                    Graphics2D g = (Graphics2D) graphics.create();
+                    g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    Polygon triangulo = new Polygon(new int[]{19, 37, 1}, new int[]{1, 33, 33}, 3);
+                    g.setColor(COLOR_ROJO);
+                    g.fillPolygon(triangulo);
+                    g.setColor(Color.WHITE);
+                    g.setFont(new Font("Segoe UI", Font.BOLD, 20));
+                    g.drawString("!", 19 - g.getFontMetrics().stringWidth("!") / 2, 30);
+                    g.dispose();
+                }
+            };
+            JPanel contIcono = new JPanel(new BorderLayout()); contIcono.setOpaque(false);
+            contIcono.add(icono, BorderLayout.NORTH);
+            texto.setEditable(false); texto.setFocusable(false);
+            texto.setLineWrap(true); texto.setWrapStyleWord(true); texto.setOpaque(false);
+            texto.setFont(new Font("Segoe UI", Font.BOLD, 17));
+            texto.setBorder(null);
+            add(contIcono, BorderLayout.WEST);
+            add(texto, BorderLayout.CENTER);
+        }
+
+        void setMensaje(String mensaje) { texto.setText(mensaje); revalidate(); }
+
+        @Override public Dimension getMaximumSize() { return new Dimension(Integer.MAX_VALUE, getPreferredSize().height); }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(temaOscuro ? new Color(69, 10, 10) : new Color(254, 242, 242));
+            g.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 14, 14);
+            g.setColor(COLOR_ROJO);
+            g.setStroke(new BasicStroke(2f));
+            g.drawRoundRect(1, 1, getWidth() - 3, getHeight() - 3, 14, 14);
+            g.fillRoundRect(0, 0, 7, getHeight() - 1, 7, 7);
+            g.dispose();
+        }
+    }
+
+    /** Encabezado de cada empleado en la distribución: nombre, ID/departamento y chips de carga. */
+    private class EncabezadoEmpleado extends JComponent {
+        private final String nombre, subtitulo, chipTareas, chipHoras;
+
+        EncabezadoEmpleado(String nombre, String subtitulo, String chipTareas, String chipHoras) {
+            this.nombre = nombre; this.subtitulo = subtitulo; this.chipTareas = chipTareas; this.chipHoras = chipHoras;
+            putClientProperty(TEMA_PROPIO, true);
+            setPreferredSize(new Dimension(400, 50));
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g.setColor(temaOscuro ? new Color(30, 41, 59) : new Color(248, 250, 252));
+            g.fillRect(0, 0, getWidth(), getHeight());
+            g.setColor(temaOscuro ? new Color(96, 165, 250) : COLOR_PRIMARIO);
+            g.fillRect(0, 0, 5, getHeight());
+
+            g.setFont(new Font("Segoe UI", Font.BOLD, 14));
+            g.setColor(temaOscuro ? Color.WHITE : COLOR_TEXTO_DARK);
+            g.drawString(nombre, 16, 22);
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+            g.setColor(temaOscuro ? new Color(148, 163, 184) : COLOR_NEUTRO);
+            g.drawString(subtitulo, 16, 39);
+
+            g.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            FontMetrics fm = g.getFontMetrics();
+            int anchoHoras = fm.stringWidth(chipHoras) + 16, anchoTareas = fm.stringWidth(chipTareas) + 16;
+            int x = getWidth() - 12 - anchoHoras - 6 - anchoTareas;
+            x = pintarBadge(g, x, getHeight(), chipTareas,
+                    temaOscuro ? new Color(30, 64, 175) : new Color(219, 234, 254),
+                    temaOscuro ? Color.WHITE : new Color(30, 64, 175));
+            pintarBadge(g, x, getHeight(), chipHoras,
+                    temaOscuro ? new Color(20, 83, 45) : new Color(220, 252, 231),
+                    temaOscuro ? new Color(187, 247, 208) : new Color(21, 128, 61));
+            g.dispose();
+        }
+    }
+
+    // --- Card Búsquedas: buscador + comparativa | recorridos | visualizador del árbol ---
     private JPanel crearCardAlgoritmos() {
-        JPanel panel = new JPanel(new GridLayout(2, 1, 10, 10)); panel.setOpaque(false);
+        JPanel panel = new JPanel(new BorderLayout()); panel.setOpaque(false);
 
-        // Subpanel 1: HashMap
-        JPanel p1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10)); p1.setBackground(COLOR_TARJETA);
-        p1.setBorder(crearBordeSeccion(" Buscar Tarea por ID (Todas las Tareas Registradas) ", 12));
-        txtBuscarHashId = new JTextField(10); estilarCampoTexto(txtBuscarHashId);
-        btnBuscarHash = crearBotonEstilizado("Buscar Tarea por ID", COLOR_PRIMARIO, Color.WHITE);
-        p1.add(new JLabel("ID Tarea:")); p1.add(txtBuscarHashId); p1.add(btnBuscarHash);
+        // ===== Panel izquierdo: buscador unificado y comparativa =====
+        JPanel izquierdo = new JPanel(new BorderLayout(8, 8)); izquierdo.setBackground(COLOR_TARJETA);
+        izquierdo.setBorder(crearBordeSeccion(" Buscar Tarea por Folio / ID ", 13));
 
-        // Subpanel 2: Búsqueda Binaria
-        JPanel p3 = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 10)); p3.setBackground(COLOR_TARJETA);
-        p3.setBorder(crearBordeSeccion(" Buscar Tarea por ID (Solo Tareas Activas: Pila, Cola y Lista) ", 12));
-        txtBuscarBinariaId = new JTextField(10); estilarCampoTexto(txtBuscarBinariaId);
-        btnBuscarBinaria = crearBotonEstilizado("Buscar Tarea por ID", COLOR_VERDE, Color.WHITE);
-        p3.add(new JLabel("ID Tarea:")); p3.add(txtBuscarBinariaId); p3.add(btnBuscarBinaria);
+        JPanel filaBusqueda = new JPanel(new BorderLayout(8, 0)); filaBusqueda.setOpaque(false);
+        txtBuscarFolio = new JTextField(); estilarCampoTexto(txtBuscarFolio);
+        txtBuscarFolio.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        txtBuscarFolio.setToolTipText("Escribe el folio (ID numérico) y presiona Enter o Buscar");
+        btnBuscarFolio = crearBotonEstilizado("  Buscar  ", COLOR_PRIMARIO, Color.WHITE);
+        btnBuscarFolio.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        txtBuscarFolio.addActionListener(e -> btnBuscarFolio.doClick()); // Enter = Buscar
+        JLabel lblFolio = new JLabel("Folio:");
+        lblFolio.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        filaBusqueda.add(lblFolio, BorderLayout.WEST);
+        filaBusqueda.add(txtBuscarFolio, BorderLayout.CENTER);
+        filaBusqueda.add(btnBuscarFolio, BorderLayout.EAST);
 
-        panel.add(p1); panel.add(p3);
+        detalleBusqueda = new DetalleTareaCard();
+        graficaComparaciones = new GraficaComparaciones();
+        JPanel resultados = new JPanel(new BorderLayout(0, 8)); resultados.setOpaque(false);
+        resultados.add(detalleBusqueda, BorderLayout.NORTH);
+        resultados.add(graficaComparaciones, BorderLayout.CENTER);
+
+        izquierdo.add(filaBusqueda, BorderLayout.NORTH);
+        izquierdo.add(resultados, BorderLayout.CENTER);
+
+        // ===== Panel derecho: recorridos recursivos =====
+        JPanel derecho = new JPanel(new BorderLayout(8, 8)); derecho.setBackground(COLOR_TARJETA);
+        derecho.setBorder(crearBordeSeccion(" Recorridos Recursivos del Árbol ", 13));
+
+        btnInorden = crearBotonOpcion("Inorden");
+        btnPreorden = crearBotonOpcion("Preorden");
+        btnPostorden = crearBotonOpcion("Postorden");
+        ButtonGroup grupoRecorridos = new ButtonGroup();
+        grupoRecorridos.add(btnInorden); grupoRecorridos.add(btnPreorden); grupoRecorridos.add(btnPostorden);
+        JPanel filaOpciones = new JPanel(new GridLayout(1, 3, 8, 0)); filaOpciones.setOpaque(false);
+        filaOpciones.add(btnInorden); filaOpciones.add(btnPreorden); filaOpciones.add(btnPostorden);
+
+        txtExplicacionRecorrido = new JTextArea("Elige un recorrido para ver en qué orden se visitan los folios del árbol.");
+        txtExplicacionRecorrido.setEditable(false); txtExplicacionRecorrido.setFocusable(false);
+        txtExplicacionRecorrido.setLineWrap(true); txtExplicacionRecorrido.setWrapStyleWord(true);
+        txtExplicacionRecorrido.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        txtExplicacionRecorrido.setBorder(new EmptyBorder(6, 6, 6, 6));
+
+        secuenciaRecorrido = new SecuenciaFolios();
+        JScrollPane scrollSecuencia = new JScrollPane(secuenciaRecorrido);
+        scrollSecuencia.setBorder(BorderFactory.createLineBorder(COLOR_BORDE));
+        scrollSecuencia.getVerticalScrollBar().setUnitIncrement(12);
+
+        JPanel cuerpoRecorridos = new JPanel(new BorderLayout(0, 6)); cuerpoRecorridos.setOpaque(false);
+        cuerpoRecorridos.add(txtExplicacionRecorrido, BorderLayout.NORTH);
+        cuerpoRecorridos.add(scrollSecuencia, BorderLayout.CENTER);
+
+        derecho.add(filaOpciones, BorderLayout.NORTH);
+        derecho.add(cuerpoRecorridos, BorderLayout.CENTER);
+
+        JPanel superior = new JPanel(new GridLayout(1, 2, 12, 0)); superior.setOpaque(false);
+        superior.add(izquierdo); superior.add(derecho);
+
+        // ===== Panel inferior: visualizador del árbol =====
+        JPanel inferior = new JPanel(new BorderLayout(6, 6)); inferior.setBackground(COLOR_TARJETA);
+        inferior.setBorder(crearBordeSeccion(" Visualizador del Árbol de Tareas (ABB por Folio) ", 13));
+        btnBalancearArbol = crearBotonEstilizado("Balancear árbol (Divide y Vencerás)", COLOR_VERDE, Color.WHITE);
+        lblInfoArbol = new JLabel("Sin tareas registradas.");
+        lblInfoArbol.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        JPanel barraArbol = new JPanel(new BorderLayout(10, 0)); barraArbol.setOpaque(false);
+        barraArbol.add(lblInfoArbol, BorderLayout.CENTER);
+        barraArbol.add(btnBalancearArbol, BorderLayout.EAST);
+
+        arbolVisual = new ArbolVisual();
+        JScrollPane scrollArbol = new JScrollPane(arbolVisual);
+        scrollArbol.setBorder(BorderFactory.createLineBorder(COLOR_BORDE));
+        scrollArbol.getHorizontalScrollBar().setUnitIncrement(16);
+        scrollArbol.getVerticalScrollBar().setUnitIncrement(16);
+        inferior.add(barraArbol, BorderLayout.NORTH);
+        inferior.add(scrollArbol, BorderLayout.CENTER);
+
+        JSplitPane division = new JSplitPane(JSplitPane.VERTICAL_SPLIT, superior, inferior);
+        division.setResizeWeight(0.5);
+        division.setBorder(null);
+        division.setOpaque(false);
+        division.setContinuousLayout(true);
+        panel.add(division, BorderLayout.CENTER);
         return panel;
+    }
+
+    // Botón de opción (tipo "pestaña") para elegir el recorrido
+    private JToggleButton crearBotonOpcion(String texto) {
+        JToggleButton b = new JToggleButton(texto) {
+            @Override protected void paintComponent(Graphics graphics) {
+                Graphics2D g = (Graphics2D) graphics.create();
+                g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                boolean sel = isSelected();
+                Color fondo = sel ? COLOR_PRIMARIO : (temaOscuro ? new Color(30, 41, 59) : new Color(241, 245, 249));
+                if (getModel().isRollover() && !sel) fondo = temaOscuro ? new Color(51, 65, 85) : new Color(226, 232, 240);
+                g.setColor(fondo);
+                g.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
+                g.setColor(sel ? COLOR_PRIMARIO : (temaOscuro ? new Color(71, 85, 105) : COLOR_BORDE));
+                g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
+                g.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                g.setColor(sel ? Color.WHITE : (temaOscuro ? Color.WHITE : COLOR_TEXTO_DARK));
+                FontMetrics fm = g.getFontMetrics();
+                g.drawString(getText(), (getWidth() - fm.stringWidth(getText())) / 2,
+                        (getHeight() + fm.getAscent() - fm.getDescent()) / 2);
+                g.dispose();
+            }
+        };
+        b.setPreferredSize(new Dimension(100, 34));
+        b.setContentAreaFilled(false); b.setBorderPainted(false); b.setFocusPainted(false);
+        b.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        b.putClientProperty(TEMA_PROPIO, true);
+        return b;
+    }
+
+    // ---------- API pública del módulo Búsquedas (la usa el Controlador) ----------
+
+    /** Muestra el detalle de la tarea buscada y la comparativa de comparaciones por método. */
+    public void mostrarResultadoBusqueda(int folio, Tarea tarea, String estado, List<MetodoBusqueda> metodos, int n) {
+        detalleBusqueda.setDatos(folio, tarea, estado);
+        graficaComparaciones.setDatos(metodos, n);
+    }
+
+    public void mostrarRecorrido(String nombre, String explicacion, List<Integer> secuencia) {
+        txtExplicacionRecorrido.setText(explicacion);
+        secuenciaRecorrido.setDatos(nombre, secuencia);
+        arbolVisual.setOrdenRecorrido(secuencia);
+    }
+
+    /** Redibuja el árbol. 'ruta' resalta los nodos visitados en la última búsqueda (puede ser vacía). */
+    public void actualizarArbol(ArbolTareasABB.Nodo raiz, String info, List<Integer> ruta, Integer encontrado) {
+        lblInfoArbol.setText(info);
+        arbolVisual.setDatos(raiz, ruta, encontrado);
+    }
+
+    /** Resalta en el árbol la ruta de la búsqueda sin reconstruirlo. */
+    public void resaltarRutaArbol(List<Integer> ruta, Integer encontrado) {
+        arbolVisual.setRuta(ruta, encontrado);
+    }
+
+    public String getFolioBuscado() { return txtBuscarFolio.getText().trim(); }
+    public JButton getBtnBuscarFolio() { return btnBuscarFolio; }
+    public JButton getBtnBalancearArbol() { return btnBalancearArbol; }
+    public JToggleButton getBtnInorden() { return btnInorden; }
+    public JToggleButton getBtnPreorden() { return btnPreorden; }
+    public JToggleButton getBtnPostorden() { return btnPostorden; }
+
+    // ---------- Componentes gráficos del módulo Búsquedas ----------
+
+    /** Tarjeta con los datos de la tarea encontrada (o el aviso de "no encontrada"). */
+    private class DetalleTareaCard extends JComponent {
+        private Integer folio;
+        private Tarea tarea;
+        private String estado = "";
+
+        DetalleTareaCard() {
+            putClientProperty(TEMA_PROPIO, true);
+            setPreferredSize(new Dimension(300, 150));
+        }
+
+        void setDatos(int folio, Tarea tarea, String estado) {
+            this.folio = folio; this.tarea = tarea; this.estado = estado == null ? "" : estado;
+            repaint();
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            int w = getWidth(), h = getHeight();
+            boolean ok = tarea != null;
+            Color acento = folio == null ? COLOR_NEUTRO : ok ? COLOR_VERDE : COLOR_ROJO;
+            g.setColor(temaOscuro ? new Color(30, 41, 59) : new Color(248, 250, 252));
+            g.fillRoundRect(0, 0, w - 1, h - 1, 12, 12);
+            g.setColor(temaOscuro ? new Color(71, 85, 105) : COLOR_BORDE);
+            g.drawRoundRect(0, 0, w - 1, h - 1, 12, 12);
+            g.setColor(acento);
+            g.fillRoundRect(0, 0, 6, h - 1, 6, 6);
+
+            Color texto = temaOscuro ? Color.WHITE : COLOR_TEXTO_DARK;
+            Color suave = temaOscuro ? new Color(148, 163, 184) : COLOR_NEUTRO;
+            if (folio == null) {
+                g.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+                g.setColor(suave);
+                g.drawString("Escribe un folio y pulsa Buscar para ver sus datos", 20, h / 2 - 4);
+                g.drawString("y cuántas comparaciones necesita cada método.", 20, h / 2 + 14);
+                g.dispose();
+                return;
+            }
+            if (!ok) {
+                g.setFont(new Font("Segoe UI", Font.BOLD, 15));
+                g.setColor(temaOscuro ? COLOR_ROJO_OSCURO_TEMA : COLOR_ROJO);
+                g.drawString("Folio " + folio + " no encontrado", 20, 34);
+                g.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+                g.setColor(suave);
+                g.drawString("No hay ninguna tarea activa con ese folio.", 20, 58);
+                g.dispose();
+                return;
+            }
+            g.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            g.setColor(suave);
+            g.drawString("FOLIO #" + tarea.getId(), 20, 22);
+            if (!estado.isEmpty()) {
+                FontMetrics fmE = g.getFontMetrics();
+                int xE = w - 12 - fmE.stringWidth(estado) - 16;
+                boolean activa = estado.startsWith("Activa");
+                pintarBadgeEn(g, xE, 8, estado,
+                        activa ? (temaOscuro ? new Color(20, 83, 45) : new Color(220, 252, 231)) : (temaOscuro ? new Color(113, 63, 18) : new Color(254, 243, 199)),
+                        activa ? (temaOscuro ? new Color(187, 247, 208) : new Color(21, 128, 61)) : (temaOscuro ? new Color(254, 240, 138) : new Color(161, 98, 7)));
+            }
+            g.setFont(new Font("Segoe UI", Font.BOLD, 16));
+            g.setColor(texto);
+            g.drawString(recortar(g, tarea.getTitulo(), w - 40), 20, 44);
+
+            String[][] campos = {
+                    {"Departamento", tarea.getDepartamento()},
+                    {"Responsable", tarea.getNombreResponsable()},
+                    {"Urgencia", tarea.getUrgencia() + " de 5"},
+                    {"Tiempo est.", tarea.getTiempoEstimado() + " h"},
+                    {"Estructura", tarea.getTipoEstructura()},
+                    {"Entrega", tarea.getFechaEntregaFormateada()},
+            };
+            int colAncho = (w - 30) / 2;
+            for (int i = 0; i < campos.length; i++) {
+                boolean filaCompleta = i >= 4;                    // Estructura y Entrega usan todo el ancho
+                int x = filaCompleta ? 20 : 20 + (i % 2) * colAncho;
+                int y = filaCompleta ? 68 + (2 + (i - 4)) * 20 : 68 + (i / 2) * 20;
+                int anchoValor = (filaCompleta ? w - 40 : colAncho) - 100;
+                g.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+                g.setColor(suave);
+                g.drawString(campos[i][0] + ":", x, y);
+                int xv = x + 96;
+                g.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                g.setColor(i == 5 && tarea.estaVencida() ? (temaOscuro ? COLOR_ROJO_OSCURO_TEMA : COLOR_ROJO) : texto);
+                g.drawString(recortar(g, campos[i][1], anchoValor), xv, y);
+            }
+            g.dispose();
+        }
+    }
+
+    private static String recortar(Graphics2D g, String texto, int ancho) {
+        if (texto == null) return "";
+        FontMetrics fm = g.getFontMetrics();
+        if (fm.stringWidth(texto) <= ancho) return texto;
+        while (texto.length() > 1 && fm.stringWidth(texto + "…") > ancho) texto = texto.substring(0, texto.length() - 1);
+        return texto + "…";
+    }
+
+    private static void pintarBadgeEn(Graphics2D g, int x, int y, String texto, Color fondo, Color colorTexto) {
+        FontMetrics fm = g.getFontMetrics();
+        int ancho = fm.stringWidth(texto) + 16, alto = 20;
+        g.setColor(fondo);
+        g.fillRoundRect(x, y, ancho, alto, alto, alto);
+        g.setColor(colorTexto);
+        g.drawString(texto, x + 8, y + (alto + fm.getAscent() - fm.getDescent()) / 2);
+    }
+
+    /** Gráfica de barras horizontales: comparaciones que hizo cada método para encontrar el folio. */
+    private class GraficaComparaciones extends JComponent {
+        private List<MetodoBusqueda> metodos = List.of();
+        private int n;
+
+        GraficaComparaciones() {
+            putClientProperty(TEMA_PROPIO, true);
+            setPreferredSize(new Dimension(300, 190));
+        }
+
+        void setDatos(List<MetodoBusqueda> metodos, int n) {
+            this.metodos = metodos; this.n = n;
+            repaint();
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            int w = getWidth(), h = getHeight();
+            Color texto = temaOscuro ? Color.WHITE : COLOR_TEXTO_DARK;
+            Color suave = temaOscuro ? new Color(148, 163, 184) : COLOR_NEUTRO;
+
+            g.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            g.setColor(texto);
+            g.drawString("Comparativa de rendimiento (número de comparaciones)", 4, 14);
+            if (metodos.isEmpty()) {
+                g.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+                g.setColor(suave);
+                g.drawString("Aparecerá al realizar una búsqueda.", 4, 34);
+                g.dispose();
+                return;
+            }
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+            g.setColor(suave);
+            g.drawString("Sobre " + n + " tarea(s) activa(s). Menos comparaciones = búsqueda más rápida.", 4, 30);
+
+            Color[] colores = temaOscuro ? PALETA_MENU_OSCURO : PALETA_MENU;
+            int max = 1;
+            for (MetodoBusqueda m : metodos) max = Math.max(max, m.comparaciones());
+            int etiquetaAncho = 175, valorAncho = 70;
+            int areaBarra = Math.max(40, w - etiquetaAncho - valorAncho - 8);
+            int filaAlto = Math.max(26, Math.min(36, (h - 44) / metodos.size()));
+            for (int i = 0; i < metodos.size(); i++) {
+                MetodoBusqueda m = metodos.get(i);
+                int y = 42 + i * filaAlto;
+                g.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                g.setColor(texto);
+                g.drawString(m.nombre(), 4, y + 12);
+                g.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+                g.setColor(suave);
+                g.drawString(m.complejidad(), 4, y + 24);
+
+                int xBarra = etiquetaAncho;
+                g.setColor(temaOscuro ? new Color(51, 65, 85) : new Color(241, 245, 249));
+                g.fillRoundRect(xBarra, y + 4, areaBarra, 16, 8, 8);
+                int largo = Math.max(6, (int) Math.round(areaBarra * (m.comparaciones() / (double) max)));
+                Color c = colores[i % colores.length];
+                g.setColor(c);
+                g.fillRoundRect(xBarra, y + 4, largo, 16, 8, 8);
+
+                g.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                g.setColor(texto);
+                String valor = m.comparaciones() + (m.comparaciones() == 1 ? " comp." : " comps.");
+                g.drawString(valor, xBarra + areaBarra + 8, y + 17);
+                if (!m.encontrado()) {
+                    g.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+                    g.setColor(temaOscuro ? COLOR_ROJO_OSCURO_TEMA : COLOR_ROJO);
+                    g.drawString("no encontrado", xBarra + areaBarra + 8, y + 29);
+                }
+            }
+            g.dispose();
+        }
+    }
+
+    /** Secuencia de folios de un recorrido como "chips" numerados que se acomodan en varias líneas. */
+    private class SecuenciaFolios extends JComponent implements Scrollable {
+        private List<Integer> secuencia = List.of();
+        private String nombre = "";
+        private static final int CHIP_ALTO = 26, SEPARACION = 22;
+
+        SecuenciaFolios() { putClientProperty(TEMA_PROPIO, true); }
+
+        void setDatos(String nombre, List<Integer> secuencia) {
+            this.nombre = nombre; this.secuencia = secuencia;
+            revalidate(); repaint();
+        }
+
+        private int anchoChip(FontMetrics fm, int folio) { return Math.max(34, fm.stringWidth(String.valueOf(folio)) + 20); }
+
+        @Override public Dimension getPreferredSize() {
+            int ancho = getParent() != null ? Math.max(100, getParent().getWidth()) : 300;
+            FontMetrics fm = getFontMetrics(new Font("Segoe UI", Font.BOLD, 12));
+            int x = 10, lineas = 1;
+            for (int folio : secuencia) {
+                int a = anchoChip(fm, folio);
+                if (x + a > ancho - 10 && x > 10) { lineas++; x = 10; }
+                x += a + SEPARACION;
+            }
+            return new Dimension(ancho, 34 + lineas * (CHIP_ALTO + 12));
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g.setColor(temaOscuro ? new Color(30, 41, 59) : Color.WHITE);
+            g.fillRect(0, 0, getWidth(), getHeight());
+            Color suave = temaOscuro ? new Color(148, 163, 184) : COLOR_NEUTRO;
+            g.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            g.setColor(suave);
+            if (nombre.isEmpty()) { g.dispose(); return; }
+            g.drawString(secuencia.isEmpty() ? "El árbol está vacío." : "Secuencia " + nombre.toLowerCase()
+                    + " (" + secuencia.size() + " folios):", 10, 18);
+
+            g.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            FontMetrics fm = g.getFontMetrics();
+            int x = 10, y = 30;
+            for (int i = 0; i < secuencia.size(); i++) {
+                int folio = secuencia.get(i), a = anchoChip(fm, folio);
+                if (x + a > getWidth() - 10 && x > 10) { x = 10; y += CHIP_ALTO + 12; }
+                g.setColor(temaOscuro ? new Color(30, 64, 175) : new Color(219, 234, 254));
+                g.fillRoundRect(x, y, a, CHIP_ALTO, CHIP_ALTO, CHIP_ALTO);
+                g.setColor(temaOscuro ? Color.WHITE : new Color(30, 64, 175));
+                String t = String.valueOf(folio);
+                g.drawString(t, x + (a - fm.stringWidth(t)) / 2, y + (CHIP_ALTO + fm.getAscent() - fm.getDescent()) / 2);
+                if (i < secuencia.size() - 1) {       // flecha hacia el siguiente folio
+                    int ax = x + a + 4, ay = y + CHIP_ALTO / 2;
+                    g.setColor(suave);
+                    g.drawLine(ax, ay, ax + SEPARACION - 9, ay);
+                    g.fillPolygon(new int[]{ax + SEPARACION - 8, ax + SEPARACION - 13, ax + SEPARACION - 13},
+                            new int[]{ay, ay - 4, ay + 4}, 3);
+                }
+                x += a + SEPARACION;
+            }
+            g.dispose();
+        }
+
+        @Override public Dimension getPreferredScrollableViewportSize() { return new Dimension(300, 120); }
+        @Override public int getScrollableUnitIncrement(Rectangle r, int o, int d) { return 12; }
+        @Override public int getScrollableBlockIncrement(Rectangle r, int o, int d) { return r.height; }
+        @Override public boolean getScrollableTracksViewportWidth() { return true; }
+        @Override public boolean getScrollableTracksViewportHeight() { return false; }
+    }
+
+    /**
+     * Dibujo del ABB: cada nodo se ubica horizontalmente según su posición inorden y
+     * verticalmente según su profundidad; las ramas unen cada nodo con sus hijos.
+     */
+    private class ArbolVisual extends JComponent {
+        private static final int RADIO = 18, SEP_X = 48, SEP_Y = 56, MARGEN = 26;
+        private ArbolTareasABB.Nodo raiz;
+        private final Map<Integer, Point> posiciones = new java.util.HashMap<>();
+        private java.util.Set<Integer> ruta = java.util.Set.of();
+        private Integer encontrado;
+        private Map<Integer, Integer> ordenRecorrido = Map.of();
+        private int columnas, niveles;
+
+        ArbolVisual() { putClientProperty(TEMA_PROPIO, true); }
+
+        void setDatos(ArbolTareasABB.Nodo raiz, List<Integer> ruta, Integer encontrado) {
+            this.raiz = raiz;
+            posiciones.clear();
+            columnas = 0; niveles = 0;
+            calcularPosiciones(raiz, 0);
+            setRuta(ruta, encontrado);
+            revalidate();
+        }
+
+        void setRuta(List<Integer> ruta, Integer encontrado) {
+            this.ruta = ruta == null ? java.util.Set.of() : new java.util.HashSet<>(ruta);
+            this.encontrado = encontrado;
+            repaint();
+        }
+
+        void setOrdenRecorrido(List<Integer> secuencia) {
+            Map<Integer, Integer> orden = new java.util.HashMap<>();
+            for (int i = 0; i < secuencia.size(); i++) orden.put(secuencia.get(i), i + 1);
+            this.ordenRecorrido = orden;
+            repaint();
+        }
+
+        // Recorrido inorden recursivo para asignar la columna (x) de cada nodo
+        private void calcularPosiciones(ArbolTareasABB.Nodo n, int profundidad) {
+            if (n == null) return;
+            calcularPosiciones(n.getIzquierdo(), profundidad + 1);
+            posiciones.put(n.getId(), new Point(columnas++, profundidad));
+            niveles = Math.max(niveles, profundidad + 1);
+            calcularPosiciones(n.getDerecho(), profundidad + 1);
+        }
+
+        @Override public Dimension getPreferredSize() {
+            return new Dimension(Math.max(200, MARGEN * 2 + Math.max(0, columnas - 1) * SEP_X + RADIO * 2),
+                    Math.max(120, MARGEN * 2 + Math.max(0, niveles - 1) * SEP_Y + RADIO * 2));
+        }
+
+        private Point centro(int id) {
+            Point celda = posiciones.get(id);
+            int anchoArbol = Math.max(0, columnas - 1) * SEP_X;
+            int desplazamiento = Math.max(MARGEN + RADIO, (getWidth() - anchoArbol) / 2); // centrado si sobra espacio
+            return new Point(desplazamiento + celda.x * SEP_X, MARGEN + RADIO + celda.y * SEP_Y);
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g.setColor(temaOscuro ? new Color(15, 23, 42) : new Color(248, 250, 252));
+            g.fillRect(0, 0, getWidth(), getHeight());
+            if (raiz == null) {
+                g.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+                g.setColor(temaOscuro ? new Color(148, 163, 184) : COLOR_NEUTRO);
+                g.drawString("No hay tareas activas: registra tareas para construir el árbol.", 20, 40);
+                g.dispose();
+                return;
+            }
+            dibujarRamas(g, raiz);
+            dibujarNodos(g, raiz);
+            dibujarLeyenda(g);
+            g.dispose();
+        }
+
+        private void dibujarLeyenda(Graphics2D g) {
+            Rectangle visible = getVisibleRect();              // fija en la esquina aunque haya scroll
+            int x = visible.x + 12, y = visible.y + 14;
+            Object[][] items = {
+                    {"Tarea", temaOscuro ? PALETA_MENU[1] : PALETA_MENU[0]},
+                    {"Ruta de búsqueda", temaOscuro ? new Color(124, 58, 237) : PALETA_MENU[3]},
+                    {"Encontrado", COLOR_AMARILLO_DESTACADO}};
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+            for (Object[] it : items) {
+                g.setColor((Color) it[1]);
+                g.fillOval(x, y - 9, 11, 11);
+                g.setColor(temaOscuro ? new Color(203, 213, 225) : COLOR_NEUTRO);
+                g.drawString((String) it[0], x + 16, y);
+                x += 16 + g.getFontMetrics().stringWidth((String) it[0]) + 16;
+            }
+        }
+
+        private void dibujarRamas(Graphics2D g, ArbolTareasABB.Nodo n) {
+            if (n == null) return;
+            Point p = centro(n.getId());
+            for (ArbolTareasABB.Nodo hijo : new ArbolTareasABB.Nodo[]{n.getIzquierdo(), n.getDerecho()}) {
+                if (hijo == null) continue;
+                Point c = centro(hijo.getId());
+                boolean enRuta = ruta.contains(n.getId()) && ruta.contains(hijo.getId());
+                g.setStroke(new BasicStroke(enRuta ? 3f : 1.6f));
+                g.setColor(enRuta ? (temaOscuro ? PALETA_MENU_OSCURO[3] : PALETA_MENU[3])
+                        : (temaOscuro ? new Color(100, 116, 139) : new Color(148, 163, 184)));
+                g.drawLine(p.x, p.y, c.x, c.y);
+                dibujarRamas(g, hijo);
+            }
+        }
+
+        private void dibujarNodos(Graphics2D g, ArbolTareasABB.Nodo n) {
+            if (n == null) return;
+            Point p = centro(n.getId());
+            boolean esEncontrado = encontrado != null && encontrado == n.getId();
+            boolean enRuta = ruta.contains(n.getId());
+            // Colores del Menú Principal: azul = nodo, violeta = ruta de búsqueda, amarillo = encontrado
+            Color relleno = esEncontrado ? COLOR_AMARILLO_DESTACADO
+                    : enRuta ? (temaOscuro ? new Color(124, 58, 237) : PALETA_MENU[3])
+                    : (temaOscuro ? PALETA_MENU[1] : PALETA_MENU[0]);
+            if (esEncontrado) {                              // halo para llamar la atención
+                g.setColor(new Color(250, 204, 21, 90));
+                g.fillOval(p.x - RADIO - 7, p.y - RADIO - 7, (RADIO + 7) * 2, (RADIO + 7) * 2);
+            }
+            g.setColor(relleno);
+            g.fillOval(p.x - RADIO, p.y - RADIO, RADIO * 2, RADIO * 2);
+            g.setStroke(new BasicStroke(2f));
+            g.setColor(temaOscuro ? new Color(15, 23, 42) : Color.WHITE);
+            g.drawOval(p.x - RADIO, p.y - RADIO, RADIO * 2, RADIO * 2);
+
+            g.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            FontMetrics fm = g.getFontMetrics();
+            String t = String.valueOf(n.getId());
+            g.setColor(esEncontrado ? COLOR_TEXTO_DARK : Color.WHITE);   // texto oscuro sobre amarillo
+            g.drawString(t, p.x - fm.stringWidth(t) / 2, p.y + (fm.getAscent() - fm.getDescent()) / 2);
+
+            Integer orden = ordenRecorrido.get(n.getId());   // número de visita en el recorrido elegido
+            if (orden != null) {
+                g.setFont(new Font("Segoe UI", Font.BOLD, 9));
+                FontMetrics f2 = g.getFontMetrics();
+                String o = String.valueOf(orden);
+                int bx = p.x + RADIO - 6, by = p.y - RADIO - 6, bw = Math.max(16, f2.stringWidth(o) + 8);
+                g.setColor(temaOscuro ? new Color(71, 85, 105) : COLOR_SIDEBAR_BG);
+                g.fillRoundRect(bx, by, bw, 16, 16, 16);
+                g.setColor(Color.WHITE);
+                g.drawString(o, bx + (bw - f2.stringWidth(o)) / 2, by + 12);
+            }
+            dibujarNodos(g, n.getIzquierdo());
+            dibujarNodos(g, n.getDerecho());
+        }
     }
 
     // --- Card Grafo de Dependencias ---
@@ -995,6 +1844,7 @@ public class GestionTareasView extends JFrame {
         if (btnModoVentana != null) {
             actualizarColorBotonVentana();
         }
+        repaint(); // repinta también los componentes con tema propio
     }
 
     private void aplicarTemaRecursivo(Container contenedor, Color fondoTarjeta, Color textoClaro, Color textoSuave, Color panelOscuro) {
@@ -1009,6 +1859,9 @@ public class GestionTareasView extends JFrame {
         }
 
         for (Component componente : contenedor.getComponents()) {
+            if (componente instanceof JComponent propio && Boolean.TRUE.equals(propio.getClientProperty(TEMA_PROPIO))) {
+                continue; // tarjetas KPI, alerta y encabezados leen 'temaOscuro' al pintarse
+            }
             if (componente instanceof JComponent componenteSwing) {
                 guardarColoresOriginales(componenteSwing);
             }
@@ -1287,8 +2140,6 @@ public class GestionTareasView extends JFrame {
     public String getFiltroDeptoEmpSeleccionado() { return (String) cbFiltroDeptoEmp.getSelectedItem(); }
     public String getFiltroDeptoListaSeleccionado() { return (String) cbFiltroDeptoLista.getSelectedItem(); }
 
-    public String getBuscarHashIdInput() { return txtBuscarHashId.getText().trim(); }
-    public String getBuscarBinariaIdInput() { return txtBuscarBinariaId.getText().trim(); }
     public String getGrafoTareaPreviaInput() { return txtGrafoTareaPrevia.getText().trim(); }
     public String getGrafoTareaSiguienteInput() { return txtGrafoTareaSiguiente.getText().trim(); }
 
@@ -1342,15 +2193,12 @@ public class GestionTareasView extends JFrame {
     public JButton getBtnMostrarTodosEmpleados() { return btnMostrarTodosEmpleados; }
     public JButton getBtnCalcularTiempoRecursivo() { return btnCalcularTiempoRecursivo; }
     public JButton getBtnDistribuirDivideVenceras() { return btnDistribuirDivideVenceras; }
-    public JButton getBtnBuscarHash() { return btnBuscarHash; }
     public JButton getBtnQuickSortUrgencia() { return btnQuickSortUrgencia; }
-    public JButton getBtnBuscarBinaria() { return btnBuscarBinaria; }
     public JButton getBtnAgregarDependencia() { return btnAgregarDependencia; }
     public JButton getBtnCalcularOrdenTopologico() { return btnCalcularOrdenTopologico; }
     public JButton getBtnModoVentana() { return btnModoVentana; }
     public boolean isVentanaCompleta() { return esVentanaCompleta; }
 
-    public void setResultadoRecursivo(String texto) { areaResultadoDistribuicion.setText(texto); }
     public void setOrdenTopologico(String texto) { areaOrdenTopologico.setText(texto); }
 
     public void actualizarDashboard(int pilaAct, int pilaRes, int colaAct, int colaRes,
