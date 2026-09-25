@@ -151,6 +151,8 @@ public class GestionTareasController {
         vista.getBtnAgregarDependencia().addActionListener(e -> agregarDependenciaGrafo());
         vista.getBtnCalcularOrdenTopologico().addActionListener(e -> calcularOrdenTopologico());
         vista.getBtnLimpiarGrafo().addActionListener(e -> limpiarGrafo());
+        // Filtro por departamento: al cambiar la tarea previa se recalculan las opciones de la siguiente
+        vista.addCambioTareaPreviaListener(this::filtrarTareasSiguientesPorDepartamento);
     }
 
         private void agregarTarea() {
@@ -379,7 +381,7 @@ public class GestionTareasController {
         try {
             folio = Integer.parseInt(vista.getFolioBuscado());
         } catch (NumberFormatException ex) {
-            JOptionPane.showMessageDialog(vista, "Ingrese un folio (ID) numérico válido.", "Atención", JOptionPane.WARNING_MESSAGE);
+            JOptionPane.showMessageDialog(vista, "Ingrese un ID de tarea numérico válido.", "Atención", JOptionPane.WARNING_MESSAGE);
             return;
         }
 
@@ -411,7 +413,7 @@ public class GestionTareasController {
         rutaBusqueda = porArbol.ruta();
         folioEncontrado = porArbol.tarea() != null ? folio : null;
         vista.resaltarRutaArbol(rutaBusqueda, folioEncontrado);
-        vista.logGUI("[BÚSQUEDA] Folio " + folio + (encontrada != null ? " encontrado" : " no encontrado")
+        vista.logGUI("[BÚSQUEDA] ID " + folio + (encontrada != null ? " encontrado" : " no encontrado")
                 + " | Hash: " + porHash.comparaciones() + ", ABB: " + porArbol.comparaciones()
                 + ", Binaria: " + porBinaria.comparaciones() + ", Secuencial: " + porSecuencial.comparaciones() + " comparaciones.");
     }
@@ -424,7 +426,7 @@ public class GestionTareasController {
             case "Preorden" -> {
                 secuencia = arbolTareas.preorden();
                 explicacion = "Preorden (Raíz → Izquierda → Derecha): visita primero cada raíz y después sus subárboles. "
-                        + "El primer folio siempre es la raíz del árbol; sirve para copiar o reconstruir el árbol con la misma forma.";
+                        + "El primer ID siempre es la raíz del árbol; sirve para copiar o reconstruir el árbol con la misma forma.";
             }
             case "Postorden" -> {
                 secuencia = arbolTareas.postorden();
@@ -433,7 +435,7 @@ public class GestionTareasController {
             }
             default -> {
                 secuencia = arbolTareas.inorden();
-                explicacion = "Inorden (Izquierda → Raíz → Derecha): en un Árbol Binario de Búsqueda devuelve los folios "
+                explicacion = "Inorden (Izquierda → Raíz → Derecha): en un Árbol Binario de Búsqueda devuelve los IDs "
                         + "ordenados de menor a mayor, porque todo lo menor queda a la izquierda y todo lo mayor a la derecha.";
             }
         }
@@ -496,21 +498,21 @@ public class GestionTareasController {
      */
     private Tarea validarTareaActiva(String texto, String campo, Map<Integer, Tarea> activas) {
         if (texto.isEmpty()) {
-            JOptionPane.showMessageDialog(vista, "Selecciona o escribe el folio de la " + campo + ".",
+            JOptionPane.showMessageDialog(vista, "Selecciona o escribe el ID de la " + campo + ".",
                     "Dato faltante", JOptionPane.WARNING_MESSAGE);
             return null;
         }
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("^#?\\s*(\\d+)\\s*(·.*)?$").matcher(texto);
         if (!m.find()) {
-            JOptionPane.showMessageDialog(vista, "\"" + texto + "\" no es un folio válido para la " + campo
-                    + ".\nEscribe solo el número (ej. 5) o elige una tarea de la lista.", "Folio inválido", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(vista, "\"" + texto + "\" no es un ID válido para la " + campo
+                    + ".\nEscribe solo el número (ej. 5) o elige una tarea de la lista.", "ID inválido", JOptionPane.ERROR_MESSAGE);
             return null;
         }
         int id;
         try {
             id = Integer.parseInt(m.group(1));
         } catch (NumberFormatException ex) {
-            JOptionPane.showMessageDialog(vista, "El folio de la " + campo + " es demasiado grande.", "Folio inválido", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(vista, "El ID de la " + campo + " es demasiado grande.", "ID inválido", JOptionPane.ERROR_MESSAGE);
             return null;
         }
         Tarea activa = activas.get(id);
@@ -519,9 +521,9 @@ public class GestionTareasController {
             boolean existio = gestorHashYAlgoritmos.buscarTareaPorHash(id) != null;
             JOptionPane.showMessageDialog(vista,
                     existio ? "La tarea #" + id + " ya fue finalizada (salió de su estructura).\nSolo se pueden usar tareas activas."
-                            : "No existe ninguna tarea con el folio #" + id + ".",
+                            : "No existe ninguna tarea con el ID #" + id + ".",
                     "Tarea no válida para la " + campo, JOptionPane.ERROR_MESSAGE);
-            vista.logGUI("[GRAFO] Bloqueado: folio #" + id + (existio ? " ya finalizado." : " inexistente."));
+            vista.logGUI("[GRAFO] Bloqueado: ID #" + id + (existio ? " ya finalizado." : " inexistente."));
             return null;
         }
         return activa;
@@ -535,7 +537,13 @@ public class GestionTareasController {
         if (siguiente == null) return;
 
         try {
-            grafoDependencias.agregarDependencia(previa.getId(), siguiente.getId());
+            // Valida la regla de mismo departamento + autodependencia, duplicado y ciclo
+            grafoDependencias.agregarDependencia(previa, siguiente);
+        } catch (GrafoDependencias.DependenciaEntreDepartamentosException ex) {
+            JOptionPane.showMessageDialog(vista, ex.getMessage(), "Transición no permitida", JOptionPane.WARNING_MESSAGE);
+            vista.logGUI("[GRAFO] Bloqueado (departamentos distintos): #" + previa.getId() + " [" + previa.getDepartamento()
+                    + "] → #" + siguiente.getId() + " [" + siguiente.getDepartamento() + "]");
+            return;
         } catch (IllegalArgumentException ex) {   // misma tarea, duplicada o ciclo
             JOptionPane.showMessageDialog(vista, ex.getMessage(), "Dependencia no permitida", JOptionPane.ERROR_MESSAGE);
             vista.logGUI("[GRAFO] Bloqueado: " + ex.getMessage());
@@ -565,6 +573,40 @@ public class GestionTareasController {
         refrescarGrafo();
     }
 
+    private GestionTareasView.OpcionTarea opcionDe(Tarea t) {
+        return new GestionTareasView.OpcionTarea(t.getId(), t.getTitulo(), t.getDepartamento());
+    }
+
+    /**
+     * FILTRO DEL FORMULARIO: si la tarea previa es una tarea activa válida, el selector de la
+     * tarea siguiente solo ofrece tareas activas del MISMO departamento (excluyendo la propia previa).
+     * Si aún no hay una previa válida, se muestran todas las tareas activas.
+     */
+    private void filtrarTareasSiguientesPorDepartamento() {
+        Map<Integer, Tarea> activas = obtenerTareasActivasPorId();
+        Tarea previa = null;
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("^#?\\s*(\\d+)\\s*(·.*)?$")
+                .matcher(vista.getGrafoTareaPreviaInput());
+        if (m.find()) {
+            try { previa = activas.get(Integer.parseInt(m.group(1))); } catch (NumberFormatException ignorado) { }
+        }
+        List<GestionTareasView.OpcionTarea> opciones = new ArrayList<>();
+        String ayuda;
+        if (previa == null) {
+            for (Tarea t : activas.values()) opciones.add(opcionDe(t));
+            ayuda = null;   // texto de ayuda general
+        } else {
+            for (Tarea t : activas.values()) {
+                if (t.getId() != previa.getId() && GrafoDependencias.mismoDepartamento(t, previa)) opciones.add(opcionDe(t));
+            }
+            ayuda = opciones.isEmpty()
+                    ? "No hay otras tareas activas de " + previa.getDepartamento() + " con las que relacionar la tarea #" + previa.getId() + "."
+                    : "Filtro activo: solo tareas de " + previa.getDepartamento() + " (" + opciones.size()
+                      + (opciones.size() == 1 ? " disponible" : " disponibles") + ").";
+        }
+        vista.setOpcionesTareaSiguiente(opciones, ayuda);
+    }
+
     /** Quita del grafo las tareas que ya no están activas y actualiza selectores, orden y dibujo. */
     private void refrescarGrafo() {
         Map<Integer, Tarea> activas = obtenerTareasActivasPorId();
@@ -575,8 +617,9 @@ public class GestionTareasController {
             }
         }
         List<GestionTareasView.OpcionTarea> opciones = new ArrayList<>();
-        for (Tarea t : activas.values()) opciones.add(new GestionTareasView.OpcionTarea(t.getId(), t.getTitulo()));
+        for (Tarea t : activas.values()) opciones.add(opcionDe(t));
         vista.setTareasActivasGrafo(opciones);
+        filtrarTareasSiguientesPorDepartamento();
 
         GrafoDependencias.OrdenEjecucion orden;
         try {
@@ -727,11 +770,15 @@ public class GestionTareasController {
     }
 
     private void actualizarTablasYMetricas() {
+        // Pila (LIFO): el siguiente a atender es el TOPE = último elemento insertado (última fila)
         vista.getModeloPila().setRowCount(0);
-        for (Tarea t : pilaUrgentes.getPila()) vista.getModeloPila().addRow(filaTarea(t));
+        Tarea tope = pilaUrgentes.peek();
+        for (Tarea t : pilaUrgentes.getPila()) vista.getModeloPila().addRow(filaConTurno(t, t == tope));
 
+        // Cola (FIFO): el siguiente a atender es el FRENTE = primer elemento insertado (primera fila)
         vista.getModeloCola().setRowCount(0);
-        for (Tarea t : colaProgramadas.getCola()) vista.getModeloCola().addRow(filaTarea(t));
+        Tarea frente = colaProgramadas.front();
+        for (Tarea t : colaProgramadas.getCola()) vista.getModeloCola().addRow(filaConTurno(t, t == frente));
 
         vista.getModeloLista().setRowCount(0);
         for (Tarea t : listaGeneral.getLista()) vista.getModeloLista().addRow(filaTarea(t));
@@ -774,5 +821,14 @@ public class GestionTareasController {
     private Object[] filaTarea(Tarea t) {
         return new Object[]{t.getId(), t.getTitulo(), t.getDepartamento(), t.getNombreResponsable(),
                 t.getUrgencia(), t.getTiempoEstimado(), t.getFechaEntrega()};
+    }
+
+    // Fila de Pila/Cola: primera columna = ¿es el siguiente a atender? (la Vista dibuja la flecha)
+    private Object[] filaConTurno(Tarea t, boolean siguiente) {
+        Object[] base = filaTarea(t);
+        Object[] fila = new Object[base.length + 1];
+        fila[0] = siguiente;
+        System.arraycopy(base, 0, fila, 1, base.length);
+        return fila;
     }
 }
