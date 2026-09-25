@@ -42,12 +42,37 @@ public class GestionTareasView extends JFrame {
     private static final Color[] PALETA_MENU_OSCURO = {new Color(59, 130, 246), new Color(96, 165, 250),
             new Color(129, 140, 248), new Color(167, 139, 250)};
     private static final Color COLOR_AMARILLO_DESTACADO = new Color(250, 204, 21);
+    // ---------- Paleta del MODO OSCURO (variables globales de estilo) ----------
+    private static final Color OSC_FONDO = new Color(0x0F172A);        // fondo principal (azul noche)
+    private static final Color OSC_PANEL = new Color(0x1E293B);        // tarjetas / paneles
+    private static final Color OSC_BORDE = new Color(0x334155);        // bordes y separadores
+    private static final Color OSC_TEXTO = new Color(0xF8FAFC);        // texto principal (blanco hueso)
+    private static final Color OSC_TEXTO_SEC = new Color(0x94A3B8);    // texto secundario / metadatos
+    private static final Color OSC_PRIMARIO = new Color(0x2563EB);     // botón primario
+    private static final Color OSC_SECUNDARIO = new Color(0x475569);   // botón secundario
+    private static final Color OSC_BARRA = new Color(0x0B1220);        // cabecera y menú lateral
+    private static final Color OSC_ENCABEZADO_TABLA = new Color(0x334155);
+    private static final Color OSC_FILA_HOVER = new Color(0x273549);   // resaltado suave al pasar el cursor
+    private static final Color OSC_SELECCION = new Color(0x1D4ED8);
+    private static final Color OSC_FILA_SIGUIENTE = new Color(0x172554); // fila "siguiente" en Pila/Cola
+    private static final Color OSC_CONSOLA_FONDO = new Color(0x090D16);
+    private static final Color OSC_CONSOLA_TEXTO = new Color(0x4ADE80); // verde terminal
+    private static final Color CLARO_FILA_HOVER = new Color(241, 245, 249);
+    private static final String ROL_BOTON = "estilo.rol";             // "primario" | "secundario" | "peligro" | "nav"
+
+    private static final Color COLOR_GRIS_CLARO_BOTON = new Color(209, 213, 219);   // #D1D5DB
+    private static final Color COLOR_GRIS_NODO = new Color(100, 116, 139);          // gris pizarra (nodo estándar)
+    private static final Color COLOR_MORADO_ENCONTRADO = new Color(124, 58, 237);   // nodo encontrado
 
     // Columnas compartidas por todas las tablas de tareas
     public static final String COL_RESPONSABLE = "Responsable Directo";
     public static final String COL_FECHA_ENTREGA = "Fecha de Entrega y Días Restantes";
     public static final String OPCION_SIN_ASIGNAR = "Sin Asignar (se asignará en Distribución)";
     private static final String[] COLUMNAS_TAREAS = {"ID", "Título", "Departamento", COL_RESPONSABLE,
+            "Urgencia", "Tiempo (hrs)", COL_FECHA_ENTREGA};
+    // Pila y Cola llevan al inicio la columna "Turno" con el indicador del siguiente elemento a atender
+    public static final String COL_TURNO = "Turno";
+    private static final String[] COLUMNAS_TURNO = {COL_TURNO, "ID", "Título", "Departamento", COL_RESPONSABLE,
             "Urgencia", "Tiempo (hrs)", COL_FECHA_ENTREGA};
 
     // Contenedores y Navegación
@@ -64,6 +89,8 @@ public class GestionTareasView extends JFrame {
     private Dimension dimensionesFlotante;
     private Point posicionFlotante;
     private JButton btnModoVentana;
+    private static final String TEXTO_PANTALLA_COMPLETA = "Pantalla Completa";
+    private static final String TEXTO_VENTANA_FLOTANTE = "Ventana Flotante";
 
     // Botones del Menú Lateral
     private JButton btnMenuToggle;
@@ -146,11 +173,11 @@ public class GestionTareasView extends JFrame {
     private JButton btnAgregarDependencia, btnCalcularOrdenTopologico, btnLimpiarGrafo;
     private OrdenEjecucionPanel panelOrdenEjecucion;
     private GrafoVisual grafoVisual;
-    private JLabel lblInfoGrafo;
+    private JLabel lblInfoGrafo, lblAyudaGrafo;
 
-    /** Opción de los selectores del grafo: una tarea activa mostrada como "#folio · título". */
-    public record OpcionTarea(int id, String titulo) {
-        @Override public String toString() { return "#" + id + " · " + titulo; }
+    /** Opción de los selectores del grafo: una tarea activa mostrada como "#ID · título". */
+    public record OpcionTarea(int id, String titulo, String departamento) {
+        @Override public String toString() { return "#" + id + " · " + titulo + " (" + departamento + ")"; }
     }
 
     // Consola de eventos
@@ -173,8 +200,11 @@ public class GestionTareasView extends JFrame {
         aplicarTemaGeneral();
     }
 
+    private JPanel panelHeader;
+
     private void initHeader(JPanel panelRaiz) {
         JPanel header = new JPanel(new BorderLayout());
+        panelHeader = header;
         header.setBackground(COLOR_SIDEBAR_BG);
         header.setPreferredSize(new Dimension(0, 52));
         header.setBorder(new EmptyBorder(5, 10, 5, 20));
@@ -196,8 +226,14 @@ public class GestionTareasView extends JFrame {
         JPanel panelHeaderAcciones = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 5));
         panelHeaderAcciones.setOpaque(false);
 
-        btnModoVentana = new JButton("Pantalla Completa");
+        btnModoVentana = new JButton(TEXTO_PANTALLA_COMPLETA);
+        btnModoVentana.setIcon(null);                                   // solo texto, sin iconos
         btnModoVentana.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btnModoVentana.setHorizontalAlignment(SwingConstants.CENTER);   // texto centrado en el botón
+        btnModoVentana.setHorizontalTextPosition(SwingConstants.CENTER);
+        btnModoVentana.setVerticalTextPosition(SwingConstants.CENTER);
+        btnModoVentana.setIconTextGap(0);
+        btnModoVentana.setMargin(new Insets(0, 0, 0, 0));               // el espacio interior lo da el borde (6px/14px)
         btnModoVentana.setForeground(Color.WHITE);
         btnModoVentana.setBackground(new Color(51, 65, 85));
         btnModoVentana.setFocusPainted(false);
@@ -219,6 +255,12 @@ public class GestionTareasView extends JFrame {
                 actualizarColorBotonVentana();
             }
         });
+
+        // Ancho fijo según el texto más largo de los dos estados, para que el botón no "salte" al cambiar
+        int anchoTexto = Math.max(btnModoVentana.getFontMetrics(btnModoVentana.getFont()).stringWidth(TEXTO_PANTALLA_COMPLETA),
+                btnModoVentana.getFontMetrics(btnModoVentana.getFont()).stringWidth(TEXTO_VENTANA_FLOTANTE));
+        btnModoVentana.setPreferredSize(new Dimension(anchoTexto + 2 * 14 + 2 + 8,
+                btnModoVentana.getPreferredSize().height));
 
         panelHeaderAcciones.add(btnModoVentana);
 
@@ -242,7 +284,7 @@ public class GestionTareasView extends JFrame {
         btnNavLista = crearBotonNav("Listas (Generales)", "LISTA");
         btnNavPrioridad = crearBotonNav("Cola Prioridad", "PRIORIDAD");
         btnNavEmpleados = crearBotonNav("Empleados", "EMPLEADOS");
-        btnNavRecursivo = crearBotonNav("Cálculos y Distribución", "RECURSIVO");
+        btnNavRecursivo = crearBotonNav("Distribución de Tareas", "RECURSIVO");
         btnNavAlgoritmos = crearBotonNav("Búsquedas", "ALGORITMOS");
         btnNavGrafo = crearBotonNav("Grafo Dependencias", "GRAFO");
         btnNavTodas = crearBotonNav("Ver Todas / Consola", "TODAS");
@@ -286,6 +328,7 @@ public class GestionTareasView extends JFrame {
         btn.setHorizontalAlignment(SwingConstants.LEFT);
         btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
         btn.setOpaque(true);
+        btn.putClientProperty(ROL_BOTON, "nav");
         guardarColoresOriginales(btn);
 
         btn.addActionListener(e -> {
@@ -297,15 +340,17 @@ public class GestionTareasView extends JFrame {
 
     private void establecerBotonNavActivo(JButton botonSeleccionado) {
         if (botonNavActivo != null && botonNavActivo != botonSeleccionado) {
-            botonNavActivo.setBackground(temaOscuro ? new Color(15, 23, 42) : COLOR_SIDEBAR_BG);
+            botonNavActivo.setBackground(temaOscuro ? OSC_BARRA : COLOR_SIDEBAR_BG);
+            botonNavActivo.setForeground(temaOscuro ? new Color(203, 213, 225) : Color.WHITE);
             botonNavActivo.setBorderPainted(false);
         }
 
         botonNavActivo = botonSeleccionado;
-        botonNavActivo.setBackground(new Color(96, 165, 250));
+        botonNavActivo.setBackground(temaOscuro ? OSC_PRIMARIO : new Color(96, 165, 250));
         botonNavActivo.setForeground(Color.WHITE);
         botonNavActivo.setBorderPainted(true);
-        botonNavActivo.setBorder(BorderFactory.createMatteBorder(0, 4, 0, 0, new Color(191, 219, 254)));
+        botonNavActivo.setBorder(BorderFactory.createMatteBorder(0, 4, 0, 0,
+                temaOscuro ? new Color(147, 197, 253) : new Color(191, 219, 254)));
     }
 
     private void alternarSidebar() {
@@ -320,7 +365,7 @@ public class GestionTareasView extends JFrame {
         btnNavLista.setText(sidebarExpandido ? "Listas (Generales)" : "LIST");
         btnNavPrioridad.setText(sidebarExpandido ? "Cola Prioridad" : "PRIO");
         btnNavEmpleados.setText(sidebarExpandido ? "Empleados" : "EMP");
-        btnNavRecursivo.setText(sidebarExpandido ? "Cálculos y Distribución" : "CALC");
+        btnNavRecursivo.setText(sidebarExpandido ? "Distribución de Tareas" : "DIST");
         btnNavAlgoritmos.setText(sidebarExpandido ? "Búsquedas" : "BUS");
         btnNavGrafo.setText(sidebarExpandido ? "Grafo Dependencias" : "GRAF");
         btnNavTodas.setText(sidebarExpandido ? "Ver Todas / Consola" : "ALL");
@@ -550,14 +595,15 @@ public class GestionTareasView extends JFrame {
 
     private JPanel crearCardPila() {
         JPanel panel = new JPanel(new BorderLayout(10, 10)); panel.setOpaque(false);
-        modeloPila = new DefaultTableModel(COLUMNAS_TAREAS, 0);
+        modeloPila = new DefaultTableModel(COLUMNAS_TURNO, 0);
         tablaPila = crearTablaEstilizada(modeloPila);
+        configurarColumnaTurno(tablaPila, "TOPE", "Tope de la pila: último en entrar, primero en salir (siguiente al procesar)");
         JScrollPane scroll = new JScrollPane(tablaPila);
-        scroll.setBorder(crearBordeSeccion(" Pilas - Tareas Urgentes ", 14));
+        scroll.setBorder(crearBordeSeccion(" Pilas - Tareas Urgentes  ·  Last In, First Out (LIFO) ", 14));
 
         JPanel panelBotones = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10)); panelBotones.setOpaque(false);
         btnPopPila = crearBotonEstilizado("Procesar Pila (Pop)", COLOR_ROJO, Color.WHITE);
-        btnPeekPila = crearBotonEstilizado("Consultar Pila (Peek)", COLOR_VERDE, Color.WHITE);
+        btnPeekPila = crearBotonEstilizado("Consultar Pila (Peek)", COLOR_PRIMARIO, Color.WHITE);
         panelBotones.add(btnPopPila); panelBotones.add(btnPeekPila);
 
         panel.add(scroll, BorderLayout.CENTER); panel.add(panelBotones, BorderLayout.SOUTH);
@@ -566,14 +612,15 @@ public class GestionTareasView extends JFrame {
 
     private JPanel crearCardCola() {
         JPanel panel = new JPanel(new BorderLayout(10, 10)); panel.setOpaque(false);
-        modeloCola = new DefaultTableModel(COLUMNAS_TAREAS, 0);
+        modeloCola = new DefaultTableModel(COLUMNAS_TURNO, 0);
         tablaCola = crearTablaEstilizada(modeloCola);
+        configurarColumnaTurno(tablaCola, "FRENTE", "Frente de la cola: primero en entrar, primero en salir (siguiente al procesar)");
         JScrollPane scroll = new JScrollPane(tablaCola);
-        scroll.setBorder(crearBordeSeccion(" Colas - Tareas Programadas ", 14));
+        scroll.setBorder(crearBordeSeccion(" Colas - Tareas Programadas  ·  First In, First Out (FIFO) ", 14));
 
         JPanel panelBotones = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10)); panelBotones.setOpaque(false);
         btnDequeueCola = crearBotonEstilizado("Procesar Cola (Dequeue)", COLOR_ROJO, Color.WHITE);
-        btnFrontCola = crearBotonEstilizado("Consultar Cola (Front)", COLOR_VERDE, Color.WHITE);
+        btnFrontCola = crearBotonEstilizado("Consultar Cola (Front)", COLOR_PRIMARIO, Color.WHITE);
         panelBotones.add(btnDequeueCola); panelBotones.add(btnFrontCola);
 
         panel.add(scroll, BorderLayout.CENTER); panel.add(panelBotones, BorderLayout.SOUTH);
@@ -611,7 +658,7 @@ public class GestionTareasView extends JFrame {
 
         JPanel panelBotones = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10)); panelBotones.setOpaque(false);
         btnExtraerPrioridad = crearBotonEstilizado("Extraer Mayor Prioridad (Poll)", COLOR_ROJO, Color.WHITE);
-        btnVerPrioridad = crearBotonEstilizado("Consultar Siguiente (Peek)", COLOR_VERDE, Color.WHITE);
+        btnVerPrioridad = crearBotonEstilizado("Consultar Siguiente (Peek)", COLOR_PRIMARIO, Color.WHITE);
         panelBotones.add(btnExtraerPrioridad); panelBotones.add(btnVerPrioridad);
 
         panel.add(scroll, BorderLayout.CENTER); panel.add(panelBotones, BorderLayout.SOUTH);
@@ -641,7 +688,7 @@ public class GestionTareasView extends JFrame {
         btnBuscarEmpleadoId = crearBotonEstilizado("Buscar por ID", COLOR_NEUTRO, Color.WHITE);
         cbFiltroDeptoEmp = new JComboBox<>(new String[]{"Sistemas", "Ventas", "Recursos Humanos", "Finanzas", "Logística"});
         btnListarEmpleadoDepto = crearBotonEstilizado("Listar por Depto", COLOR_NEUTRO, Color.WHITE);
-        btnMostrarTodosEmpleados = crearBotonEstilizado("Ver Todos", COLOR_VERDE, Color.WHITE);
+        btnMostrarTodosEmpleados = crearBotonEstilizado("Ver Todos", COLOR_GRIS_CLARO_BOTON, COLOR_TEXTO_DARK);
 
         panelAcciones.add(new JLabel("ID:")); panelAcciones.add(txtBuscarEmpleadoId); panelAcciones.add(btnBuscarEmpleadoId);
         panelAcciones.add(Box.createHorizontalStrut(15));
@@ -652,7 +699,12 @@ public class GestionTareasView extends JFrame {
         modeloEmpleados = new DefaultTableModel(new String[]{"ID", "Nombre Empleado", "Departamento", COL_PENDIENTES}, 0);
         tablaEmpleados = crearTablaEstilizada(modeloEmpleados);
         tablaEmpleados.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        tablaEmpleados.getColumnModel().getColumn(3).setCellRenderer(new PendientesBadgeRenderer());
+        // Solo el número total de pendientes, en texto normal (sin vencidas/críticas ni colores)
+        tablaEmpleados.getColumnModel().getColumn(3).setCellRenderer(new DefaultTableCellRenderer() {
+            @Override protected void setValue(Object valor) {
+                setText(valor instanceof ResumenPendientes r ? String.valueOf(r.total()) : valor == null ? "0" : valor.toString());
+            }
+        });
         tablaEmpleados.getColumnModel().getColumn(3).setPreferredWidth(260);
         tablaEmpleados.setToolTipText("Selecciona un empleado para ver el detalle de sus tareas pendientes");
         JScrollPane scrollTabla = new JScrollPane(tablaEmpleados);
@@ -661,7 +713,7 @@ public class GestionTareasView extends JFrame {
         // --- Sección desplegable: detalle de tareas pendientes del empleado seleccionado ---
         modeloPendientesEmpleado = new DefaultTableModel(new String[]{"ID", "Título", "Urgencia", COL_FECHA_ENTREGA, "Estructura"}, 0);
         tablaPendientesEmpleado = crearTablaEstilizada(modeloPendientesEmpleado);
-        tablaPendientesEmpleado.getColumnModel().getColumn(2).setCellRenderer(new UrgenciaBadgeRenderer());
+        // Urgencia: número simple (renderer por defecto, sin badge ni colores)
         tablaPendientesEmpleado.getColumnModel().getColumn(2).setPreferredWidth(110);
         tablaPendientesEmpleado.getColumnModel().getColumn(1).setPreferredWidth(220);
 
@@ -695,14 +747,23 @@ public class GestionTareasView extends JFrame {
         return panel;
     }
 
-    // --- Card Cálculos y Distribución (tarjetas KPI + alerta + tabla por empleado) ---
+    // --- Card Distribución de Tareas (tarjetas KPI + alerta + tabla por empleado) ---
     private JPanel crearCardRecursivo() {
         JPanel panel = new JPanel(new BorderLayout(10, 10)); panel.setOpaque(false);
 
         JPanel panelBotones = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 10)); panelBotones.setOpaque(false);
         btnCalcularTiempoRecursivo = crearBotonEstilizado("Calcular Tiempo Total Estimado", COLOR_PRIMARIO, Color.WHITE);
-        btnDistribuirDivideVenceras = crearBotonEstilizado("Distribuir Tareas entre Empleados", COLOR_VERDE, Color.WHITE);
+        btnDistribuirDivideVenceras = crearBotonEstilizado("Distribuir Tareas entre Empleados", PALETA_MENU[0], Color.WHITE);
         panelBotones.add(btnCalcularTiempoRecursivo); panelBotones.add(btnDistribuirDivideVenceras);
+
+        // Cabecera de la página
+        JLabel lblTituloDistribucion = new JLabel("Distribución de Tareas");
+        lblTituloDistribucion.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        lblTituloDistribucion.setForeground(COLOR_TEXTO_DARK);
+        lblTituloDistribucion.setBorder(new EmptyBorder(0, 4, 0, 0));
+        JPanel cabeceraDistribucion = new JPanel(new BorderLayout()); cabeceraDistribucion.setOpaque(false);
+        cabeceraDistribucion.add(lblTituloDistribucion, BorderLayout.NORTH);
+        cabeceraDistribucion.add(panelBotones, BorderLayout.CENTER);
 
         // Alerta roja (oculta hasta que haya departamentos sin personal)
         alertaSinPersonal = new AlertaPanel();
@@ -710,7 +771,7 @@ public class GestionTareasView extends JFrame {
 
         // Tarjetas de métricas
         kpiTotalTareas = new KpiCard("TOTAL DE TAREAS ANALIZADAS", COLOR_PRIMARIO, new Color(96, 165, 250));
-        kpiTiempoTotal = new KpiCard("TIEMPO TOTAL ESTIMADO ACUMULADO", COLOR_VERDE, new Color(74, 222, 128));
+        kpiTiempoTotal = new KpiCard("TIEMPO TOTAL ESTIMADO ACUMULADO", PALETA_MENU[0], new Color(147, 197, 253));
         JPanel filaKpis = new JPanel(new GridLayout(1, 2, 12, 0)); filaKpis.setOpaque(false);
         filaKpis.add(kpiTotalTareas); filaKpis.add(kpiTiempoTotal);
 
@@ -743,7 +804,7 @@ public class GestionTareasView extends JFrame {
         centro.add(superior, BorderLayout.NORTH);
         centro.add(panelDistribucion, BorderLayout.CENTER);
 
-        panel.add(panelBotones, BorderLayout.NORTH); panel.add(centro, BorderLayout.CENTER);
+        panel.add(cabeceraDistribucion, BorderLayout.NORTH); panel.add(centro, BorderLayout.CENTER);
         return panel;
     }
 
@@ -829,8 +890,7 @@ public class GestionTareasView extends JFrame {
                     f.responsablePrevio() ? "Directa" : "Nueva"});
         }
         JTable tabla = crearTablaEstilizada(modelo);
-        tabla.getColumnModel().getColumn(3).setCellRenderer(new UrgenciaBadgeRenderer());
-        tabla.getColumnModel().getColumn(3).setPreferredWidth(105);
+        tabla.getColumnModel().getColumn(3).setPreferredWidth(80);   // urgencia: número simple
         tabla.getColumnModel().getColumn(1).setPreferredWidth(190);
         tabla.getColumnModel().getColumn(4).setPreferredWidth(80);
         tabla.getColumnModel().getColumn(7).setPreferredWidth(80);
@@ -880,7 +940,7 @@ public class GestionTareasView extends JFrame {
             int w = getWidth(), h = getHeight();
             g.setColor(temaOscuro ? new Color(30, 41, 59) : Color.WHITE);
             g.fillRoundRect(0, 0, w - 1, h - 1, 14, 14);
-            g.setColor(temaOscuro ? new Color(71, 85, 105) : COLOR_BORDE);
+            g.setColor(temaOscuro ? OSC_BORDE : COLOR_BORDE);
             g.drawRoundRect(0, 0, w - 1, h - 1, 14, 14);
             g.setColor(acento);
             g.fillRoundRect(0, 0, 6, h - 1, 6, 6);
@@ -992,8 +1052,8 @@ public class GestionTareasView extends JFrame {
                     temaOscuro ? new Color(30, 64, 175) : new Color(219, 234, 254),
                     temaOscuro ? Color.WHITE : new Color(30, 64, 175));
             pintarBadge(g, x, getHeight(), chipHoras,
-                    temaOscuro ? new Color(20, 83, 45) : new Color(220, 252, 231),
-                    temaOscuro ? new Color(187, 247, 208) : new Color(21, 128, 61));
+                    temaOscuro ? new Color(51, 65, 85) : new Color(241, 245, 249),
+                    temaOscuro ? new Color(203, 213, 225) : COLOR_NEUTRO);
             g.dispose();
         }
     }
@@ -1004,16 +1064,16 @@ public class GestionTareasView extends JFrame {
 
         // ===== Panel izquierdo: buscador unificado y comparativa =====
         JPanel izquierdo = new JPanel(new BorderLayout(8, 8)); izquierdo.setBackground(COLOR_TARJETA);
-        izquierdo.setBorder(crearBordeSeccion(" Buscar Tarea por Folio / ID ", 13));
+        izquierdo.setBorder(crearBordeSeccion(" Buscar Tarea por ID ", 13));
 
         JPanel filaBusqueda = new JPanel(new BorderLayout(8, 0)); filaBusqueda.setOpaque(false);
         txtBuscarFolio = new JTextField(); estilarCampoTexto(txtBuscarFolio);
         txtBuscarFolio.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        txtBuscarFolio.setToolTipText("Escribe el folio (ID numérico) y presiona Enter o Buscar");
+        txtBuscarFolio.setToolTipText("Escribe el ID de la tarea (número) y presiona Enter o Buscar");
         btnBuscarFolio = crearBotonEstilizado("  Buscar  ", COLOR_PRIMARIO, Color.WHITE);
         btnBuscarFolio.setFont(new Font("Segoe UI", Font.BOLD, 12));
         txtBuscarFolio.addActionListener(e -> btnBuscarFolio.doClick()); // Enter = Buscar
-        JLabel lblFolio = new JLabel("Folio:");
+        JLabel lblFolio = new JLabel("ID de Tarea:");
         lblFolio.setFont(new Font("Segoe UI", Font.BOLD, 12));
         filaBusqueda.add(lblFolio, BorderLayout.WEST);
         filaBusqueda.add(txtBuscarFolio, BorderLayout.CENTER);
@@ -1040,7 +1100,7 @@ public class GestionTareasView extends JFrame {
         JPanel filaOpciones = new JPanel(new GridLayout(1, 3, 8, 0)); filaOpciones.setOpaque(false);
         filaOpciones.add(btnInorden); filaOpciones.add(btnPreorden); filaOpciones.add(btnPostorden);
 
-        txtExplicacionRecorrido = new JTextArea("Elige un recorrido para ver en qué orden se visitan los folios del árbol.");
+        txtExplicacionRecorrido = new JTextArea("Elige un recorrido para ver en qué orden se visitan los IDs del árbol.");
         txtExplicacionRecorrido.setEditable(false); txtExplicacionRecorrido.setFocusable(false);
         txtExplicacionRecorrido.setLineWrap(true); txtExplicacionRecorrido.setWrapStyleWord(true);
         txtExplicacionRecorrido.setFont(new Font("Segoe UI", Font.PLAIN, 12));
@@ -1063,8 +1123,8 @@ public class GestionTareasView extends JFrame {
 
         // ===== Panel inferior: visualizador del árbol =====
         JPanel inferior = new JPanel(new BorderLayout(6, 6)); inferior.setBackground(COLOR_TARJETA);
-        inferior.setBorder(crearBordeSeccion(" Visualizador del Árbol de Tareas (ABB por Folio) ", 13));
-        btnBalancearArbol = crearBotonEstilizado("Balancear árbol (Divide y Vencerás)", COLOR_VERDE, Color.WHITE);
+        inferior.setBorder(crearBordeSeccion(" Visualizador del Árbol de Tareas (ABB por ID) ", 13));
+        btnBalancearArbol = crearBotonEstilizado("Balancear árbol (Divide y Vencerás)", COLOR_PRIMARIO, Color.WHITE);
         lblInfoArbol = new JLabel("Sin tareas registradas.");
         lblInfoArbol.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         JPanel barraArbol = new JPanel(new BorderLayout(10, 0)); barraArbol.setOpaque(false);
@@ -1099,7 +1159,7 @@ public class GestionTareasView extends JFrame {
                 if (getModel().isRollover() && !sel) fondo = temaOscuro ? new Color(51, 65, 85) : new Color(226, 232, 240);
                 g.setColor(fondo);
                 g.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
-                g.setColor(sel ? COLOR_PRIMARIO : (temaOscuro ? new Color(71, 85, 105) : COLOR_BORDE));
+                g.setColor(sel ? COLOR_PRIMARIO : (temaOscuro ? OSC_BORDE : COLOR_BORDE));
                 g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
                 g.setFont(new Font("Segoe UI", Font.BOLD, 12));
                 g.setColor(sel ? Color.WHITE : (temaOscuro ? Color.WHITE : COLOR_TEXTO_DARK));
@@ -1173,10 +1233,10 @@ public class GestionTareasView extends JFrame {
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             int w = getWidth(), h = getHeight();
             boolean ok = tarea != null;
-            Color acento = folio == null ? COLOR_NEUTRO : ok ? COLOR_VERDE : COLOR_ROJO;
+            Color acento = folio == null ? COLOR_NEUTRO : ok ? COLOR_PRIMARIO : COLOR_ROJO;
             g.setColor(temaOscuro ? new Color(30, 41, 59) : new Color(248, 250, 252));
             g.fillRoundRect(0, 0, w - 1, h - 1, 12, 12);
-            g.setColor(temaOscuro ? new Color(71, 85, 105) : COLOR_BORDE);
+            g.setColor(temaOscuro ? OSC_BORDE : COLOR_BORDE);
             g.drawRoundRect(0, 0, w - 1, h - 1, 12, 12);
             g.setColor(acento);
             g.fillRoundRect(0, 0, 6, h - 1, 6, 6);
@@ -1186,7 +1246,7 @@ public class GestionTareasView extends JFrame {
             if (folio == null) {
                 g.setFont(new Font("Segoe UI", Font.PLAIN, 12));
                 g.setColor(suave);
-                g.drawString("Escribe un folio y pulsa Buscar para ver sus datos", 20, h / 2 - 4);
+                g.drawString("Escribe un ID de tarea y pulsa Buscar para ver sus datos", 20, h / 2 - 4);
                 g.drawString("y cuántas comparaciones necesita cada método.", 20, h / 2 + 14);
                 g.dispose();
                 return;
@@ -1194,23 +1254,27 @@ public class GestionTareasView extends JFrame {
             if (!ok) {
                 g.setFont(new Font("Segoe UI", Font.BOLD, 15));
                 g.setColor(temaOscuro ? COLOR_ROJO_OSCURO_TEMA : COLOR_ROJO);
-                g.drawString("Folio " + folio + " no encontrado", 20, 34);
+                g.drawString("ID " + folio + " no encontrado", 20, 34);
                 g.setFont(new Font("Segoe UI", Font.PLAIN, 12));
                 g.setColor(suave);
-                g.drawString("No hay ninguna tarea activa con ese folio.", 20, 58);
+                g.drawString("No hay ninguna tarea activa con ese ID.", 20, 58);
                 g.dispose();
                 return;
             }
             g.setFont(new Font("Segoe UI", Font.BOLD, 11));
             g.setColor(suave);
-            g.drawString("FOLIO #" + tarea.getId(), 20, 22);
+            g.drawString("ID DE TAREA #" + tarea.getId(), 20, 22);
             if (!estado.isEmpty()) {
                 FontMetrics fmE = g.getFontMetrics();
                 int xE = w - 12 - fmE.stringWidth(estado) - 16;
                 boolean activa = estado.startsWith("Activa");
-                pintarBadgeEn(g, xE, 8, estado,
-                        activa ? (temaOscuro ? new Color(20, 83, 45) : new Color(220, 252, 231)) : (temaOscuro ? new Color(113, 63, 18) : new Color(254, 243, 199)),
-                        activa ? (temaOscuro ? new Color(187, 247, 208) : new Color(21, 128, 61)) : (temaOscuro ? new Color(254, 240, 138) : new Color(161, 98, 7)));
+                Color colorEstado = activa ? (temaOscuro ? new Color(96, 165, 250) : COLOR_PRIMARIO)
+                                           : (temaOscuro ? new Color(148, 163, 184) : COLOR_NEUTRO);
+                int anchoE = fmE.stringWidth(estado) + 16;
+                g.setColor(colorEstado);
+                g.setStroke(new BasicStroke(1.3f));
+                g.drawRoundRect(xE, 8, anchoE, 20, 20, 20);
+                g.drawString(estado, xE + 8, 8 + (20 + fmE.getAscent() - fmE.getDescent()) / 2);
             }
             g.setFont(new Font("Segoe UI", Font.BOLD, 16));
             g.setColor(texto);
@@ -1374,7 +1438,7 @@ public class GestionTareasView extends JFrame {
             g.setColor(suave);
             if (nombre.isEmpty()) { g.dispose(); return; }
             g.drawString(secuencia.isEmpty() ? "El árbol está vacío." : "Secuencia " + nombre.toLowerCase()
-                    + " (" + secuencia.size() + " folios):", 10, 18);
+                    + " (" + secuencia.size() + " IDs):", 10, 18);
 
             g.setFont(new Font("Segoe UI", Font.BOLD, 12));
             FontMetrics fm = g.getFontMetrics();
@@ -1488,9 +1552,9 @@ public class GestionTareasView extends JFrame {
             Rectangle visible = getVisibleRect();              // fija en la esquina aunque haya scroll
             int x = visible.x + 12, y = visible.y + 14;
             Object[][] items = {
-                    {"Tarea", temaOscuro ? PALETA_MENU[1] : PALETA_MENU[0]},
-                    {"Ruta de búsqueda", temaOscuro ? new Color(124, 58, 237) : PALETA_MENU[3]},
-                    {"Encontrado", COLOR_AMARILLO_DESTACADO}};
+                    {"Tarea", COLOR_GRIS_NODO},
+                    {"Ruta de búsqueda", temaOscuro ? new Color(59, 130, 246) : COLOR_PRIMARIO},
+                    {"Encontrado", COLOR_MORADO_ENCONTRADO}};
             g.setFont(new Font("Segoe UI", Font.PLAIN, 11));
             for (Object[] it : items) {
                 g.setColor((Color) it[1]);
@@ -1509,7 +1573,7 @@ public class GestionTareasView extends JFrame {
                 Point c = centro(hijo.getId());
                 boolean enRuta = ruta.contains(n.getId()) && ruta.contains(hijo.getId());
                 g.setStroke(new BasicStroke(enRuta ? 3f : 1.6f));
-                g.setColor(enRuta ? (temaOscuro ? PALETA_MENU_OSCURO[3] : PALETA_MENU[3])
+                g.setColor(enRuta ? (temaOscuro ? new Color(96, 165, 250) : COLOR_PRIMARIO)
                         : (temaOscuro ? new Color(100, 116, 139) : new Color(148, 163, 184)));
                 g.drawLine(p.x, p.y, c.x, c.y);
                 dibujarRamas(g, hijo);
@@ -1521,12 +1585,12 @@ public class GestionTareasView extends JFrame {
             Point p = centro(n.getId());
             boolean esEncontrado = encontrado != null && encontrado == n.getId();
             boolean enRuta = ruta.contains(n.getId());
-            // Colores del Menú Principal: azul = nodo, violeta = ruta de búsqueda, amarillo = encontrado
-            Color relleno = esEncontrado ? COLOR_AMARILLO_DESTACADO
-                    : enRuta ? (temaOscuro ? new Color(124, 58, 237) : PALETA_MENU[3])
-                    : (temaOscuro ? PALETA_MENU[1] : PALETA_MENU[0]);
+            // Gris = nodo estándar, azul = ruta de búsqueda, morado = tarea encontrada
+            Color relleno = esEncontrado ? COLOR_MORADO_ENCONTRADO
+                    : enRuta ? (temaOscuro ? new Color(59, 130, 246) : COLOR_PRIMARIO)
+                    : COLOR_GRIS_NODO;
             if (esEncontrado) {                              // halo para llamar la atención
-                g.setColor(new Color(250, 204, 21, 90));
+                g.setColor(new Color(124, 58, 237, 70));
                 g.fillOval(p.x - RADIO - 7, p.y - RADIO - 7, (RADIO + 7) * 2, (RADIO + 7) * 2);
             }
             g.setColor(relleno);
@@ -1538,7 +1602,7 @@ public class GestionTareasView extends JFrame {
             g.setFont(new Font("Segoe UI", Font.BOLD, 12));
             FontMetrics fm = g.getFontMetrics();
             String t = String.valueOf(n.getId());
-            g.setColor(esEncontrado ? COLOR_TEXTO_DARK : Color.WHITE);   // texto oscuro sobre amarillo
+            g.setColor(Color.WHITE);
             g.drawString(t, p.x - fm.stringWidth(t) / 2, p.y + (fm.getAscent() - fm.getDescent()) / 2);
 
             Integer orden = ordenRecorrido.get(n.getId());   // número de visita en el recorrido elegido
@@ -1569,7 +1633,7 @@ public class GestionTareasView extends JFrame {
         cbGrafoTareaSiguiente = new JComboBox<>(); cbGrafoTareaSiguiente.setEditable(true);
         cbGrafoTareaPrevia.setPreferredSize(new Dimension(250, 30));
         cbGrafoTareaSiguiente.setPreferredSize(new Dimension(250, 30));
-        cbGrafoTareaPrevia.setToolTipText("Tarea que debe terminarse primero (elige de la lista o escribe su folio)");
+        cbGrafoTareaPrevia.setToolTipText("Tarea que debe terminarse primero (elige de la lista o escribe su ID)");
         cbGrafoTareaSiguiente.setToolTipText("Tarea que no puede empezar hasta terminar la previa");
         btnAgregarDependencia = crearBotonEstilizado("+ Agregar Dependencia", COLOR_PRIMARIO, Color.WHITE);
         btnCalcularOrdenTopologico = crearBotonEstilizado("Calcular Orden de Ejecución", PALETA_MENU[0], Color.WHITE);
@@ -1583,10 +1647,10 @@ public class GestionTareasView extends JFrame {
         filaForm.add(lblSiguiente); filaForm.add(cbGrafoTareaSiguiente);
         filaForm.add(btnAgregarDependencia);
 
-        JLabel ayuda = new JLabel("La previa debe terminarse antes que la siguiente. Solo tareas activas; "
-                + "al finalizarse, una tarea sale del grafo.");
+        JLabel ayuda = new JLabel(AYUDA_GRAFO_BASE);
         ayuda.setFont(new Font("Segoe UI", Font.PLAIN, 11));
         ayuda.setBorder(new EmptyBorder(0, 8, 2, 8));
+        lblAyudaGrafo = ayuda;
         JPanel botonesGrafo = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0)); botonesGrafo.setOpaque(false);
         botonesGrafo.add(btnCalcularOrdenTopologico); botonesGrafo.add(btnLimpiarGrafo);
         JPanel filaAyuda = new JPanel(new BorderLayout(10, 0)); filaAyuda.setOpaque(false);
@@ -1628,6 +1692,34 @@ public class GestionTareasView extends JFrame {
     }
 
     // ---------- API pública del módulo Grafo ----------
+    private static final String AYUDA_GRAFO_BASE = "Elige la tarea previa: la lista de la derecha mostrará solo tareas "
+            + "activas de su mismo departamento.";
+
+    /** Avisa al Controlador cada vez que cambia la tarea previa (al elegirla o al escribir su ID). */
+    public void addCambioTareaPreviaListener(Runnable accion) {
+        cbGrafoTareaPrevia.addActionListener(e -> accion.run());
+        JTextField editor = (JTextField) cbGrafoTareaPrevia.getEditor().getEditorComponent();
+        editor.getDocument().addDocumentListener(new javax.swing.event.DocumentListener() {
+            private void cambio() { SwingUtilities.invokeLater(accion); }
+            @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { cambio(); }
+            @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { cambio(); }
+            @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { cambio(); }
+        });
+    }
+
+    /** Reemplaza SOLO las opciones del selector "Tarea siguiente" (filtradas por el Controlador). */
+    public void setOpcionesTareaSiguiente(List<OpcionTarea> opciones, String ayuda) {
+        Object escrito = cbGrafoTareaSiguiente.getEditor().getItem();
+        List<Object> actuales = new java.util.ArrayList<>();
+        for (int i = 0; i < cbGrafoTareaSiguiente.getItemCount(); i++) actuales.add(cbGrafoTareaSiguiente.getItemAt(i));
+        if (!actuales.equals(new java.util.ArrayList<Object>(opciones))) {   // evita parpadeo si no cambió
+            cbGrafoTareaSiguiente.removeAllItems();
+            for (OpcionTarea o : opciones) cbGrafoTareaSiguiente.addItem(o);
+            cbGrafoTareaSiguiente.setSelectedItem(null);
+            cbGrafoTareaSiguiente.getEditor().setItem(escrito == null ? "" : escrito);
+        }
+        lblAyudaGrafo.setText(ayuda == null ? AYUDA_GRAFO_BASE : ayuda);
+    }
 
     /** Recarga los selectores con las tareas activas, conservando lo que el usuario tenía escrito/elegido. */
     public void setTareasActivasGrafo(List<OpcionTarea> opciones) {
@@ -1716,9 +1808,9 @@ public class GestionTareasView extends JFrame {
             Graphics2D g = (Graphics2D) graphics.create();
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g.setColor(temaOscuro ? new Color(51, 65, 85) : COLOR_TARJETA);
+            g.setColor(temaOscuro ? OSC_PANEL : COLOR_TARJETA);
             g.fillRect(0, 0, getWidth(), getHeight());
-            Color texto = temaOscuro ? Color.WHITE : COLOR_TEXTO_DARK;
+            Color texto = temaOscuro ? OSC_TEXTO : COLOR_TEXTO_DARK;
             Color suave = temaOscuro ? new Color(203, 213, 225) : COLOR_NEUTRO;
 
             g.setFont(new Font("Segoe UI", Font.PLAIN, 12));
@@ -1953,6 +2045,7 @@ public class GestionTareasView extends JFrame {
         panelTopAction.add(btnVerOrdenadas); panelTopAction.add(btnCambiarTema);
 
         areaConsolaGUI = new JTextArea(6, 80); areaConsolaGUI.setEditable(false);
+        areaConsolaGUI.putClientProperty("estilo.consola", true);
         areaConsolaGUI.setFont(new Font("Consolas", Font.PLAIN, 12));
         areaConsolaGUI.setBackground(new Color(15, 23, 42)); areaConsolaGUI.setForeground(new Color(34, 197, 94));
         JScrollPane scrollConsola = new JScrollPane(areaConsolaGUI);
@@ -1968,7 +2061,41 @@ public class GestionTareasView extends JFrame {
     private JTable crearTablaEstilizada(DefaultTableModel model) {
         JTable table = new JTable(model) {
             @Override public boolean isCellEditable(int row, int column) { return false; }
+
+            // Fondo de cada fila: "siguiente" (Pila/Cola) > fila bajo el cursor > alternancia (modo oscuro).
+            // Se asigna SIEMPRE: el renderer es compartido y recordaría el último fondo usado.
+            @Override public Component prepareRenderer(javax.swing.table.TableCellRenderer r, int fila, int col) {
+                Component c = super.prepareRenderer(r, fila, col);
+                if (!isRowSelected(fila)) {
+                    boolean siguiente = getColumnCount() > 0 && COL_TURNO.equals(getColumnName(0))
+                            && Boolean.TRUE.equals(getModel().getValueAt(convertRowIndexToModel(fila), 0));
+                    Object hover = getClientProperty("fila.hover");
+                    Color fondo;
+                    if (siguiente) fondo = temaOscuro ? OSC_FILA_SIGUIENTE : new Color(239, 246, 255);
+                    else if (hover instanceof Integer h && h == fila) fondo = temaOscuro ? OSC_FILA_HOVER : CLARO_FILA_HOVER;
+                    else if (temaOscuro) fondo = fila % 2 == 0 ? OSC_PANEL : OSC_FONDO;
+                    else fondo = getBackground();
+                    c.setBackground(fondo);
+                }
+                return c;
+            }
         };
+        // Resaltado suave de la fila bajo el cursor
+        table.addMouseMotionListener(new MouseMotionAdapter() {
+            @Override public void mouseMoved(MouseEvent e) {
+                int fila = table.rowAtPoint(e.getPoint());
+                if (!Integer.valueOf(fila).equals(table.getClientProperty("fila.hover"))) {
+                    table.putClientProperty("fila.hover", fila);
+                    table.repaint();
+                }
+            }
+        });
+        table.addMouseListener(new MouseAdapter() {
+            @Override public void mouseExited(MouseEvent e) {
+                table.putClientProperty("fila.hover", -1);
+                table.repaint();
+            }
+        });
         table.setFont(new Font("Segoe UI", Font.PLAIN, 12)); table.setRowHeight(26);
         table.setGridColor(COLOR_BORDE); table.setSelectionBackground(new Color(219, 234, 254));
         JTableHeader header = table.getTableHeader(); header.setFont(new Font("Segoe UI", Font.BOLD, 12));
@@ -1976,6 +2103,67 @@ public class GestionTareasView extends JFrame {
         ((DefaultTableCellRenderer) header.getDefaultRenderer()).setHorizontalAlignment(SwingConstants.LEFT);
         configurarColumnasTareas(table);
         return table;
+    }
+
+    private void configurarColumnaTurno(JTable tabla, String posicion, String ayuda) {
+        tabla.getColumnModel().getColumn(0).setCellRenderer(new TurnoRenderer(posicion, ayuda));
+        tabla.getColumnModel().getColumn(0).setPreferredWidth(170);
+        tabla.getColumnModel().getColumn(0).setMaxWidth(190);
+        tabla.getColumnModel().getColumn(0).setMinWidth(150);
+    }
+
+    /**
+     * Columna "Turno" de Pila y Cola: en la fila del siguiente elemento a atender dibuja una
+     * flecha azul y el texto azul "TOPE: Siguiente" (pila) o "FRENTE: Siguiente" (cola).
+     * El valor de la celda es un Boolean que el Controlador calcula en cada refresco.
+     */
+    private class TurnoRenderer extends JComponent implements javax.swing.table.TableCellRenderer {
+        private final String posicion, ayuda;
+        private boolean siguiente, seleccionado;
+        private JTable tabla;
+        private int fila;
+
+        TurnoRenderer(String posicion, String ayuda) { this.posicion = posicion; this.ayuda = ayuda; }
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object valor, boolean isSelected,
+                                                       boolean foco, int fila, int columna) {
+            this.tabla = table; this.fila = fila;
+            this.siguiente = Boolean.TRUE.equals(valor);
+            this.seleccionado = isSelected;
+            setToolTipText(siguiente ? ayuda : null);
+            return this;
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            Graphics2D g = (Graphics2D) graphics.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            Color fondo = seleccionado ? tabla.getSelectionBackground() : getBackground();
+            g.setColor(fondo);
+            g.fillRect(0, 0, getWidth(), getHeight());
+            if (!siguiente) {
+                g.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+                g.setColor(temaOscuro ? new Color(100, 116, 139) : new Color(203, 213, 225));
+                String n = String.valueOf(fila + 1);
+                g.drawString(n, 12, (getHeight() + g.getFontMetrics().getAscent()) / 2 - 2);
+                g.dispose();
+                return;
+            }
+            // Flecha azul
+            Color azul = temaOscuro ? new Color(96, 165, 250) : COLOR_PRIMARIO;
+            int cy = getHeight() / 2;
+            g.setColor(azul);
+            g.fillRect(8, cy - 3, 12, 6);
+            g.fillPolygon(new int[]{19, 29, 19}, new int[]{cy - 8, cy, cy + 8}, 3);
+            // Texto "POSICIÓN: Siguiente" en azul, sin fondo ni bordes
+            g.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            FontMetrics fm = g.getFontMetrics();
+            g.setColor(azul);
+            g.drawString(posicion + ": Siguiente", 36, cy + (fm.getAscent() - fm.getDescent()) / 2);
+            g.dispose();
+        }
     }
 
     // Instala los renderers de "Responsable Directo" y "Fecha de Entrega" en las tablas que tengan esas columnas
@@ -2068,93 +2256,38 @@ public class GestionTareasView extends JFrame {
         return x + ancho + 6;
     }
 
-    /** Columna "Tareas Pendientes": badge con el total y, si aplica, badges de vencidas y críticas. */
-    private class PendientesBadgeRenderer extends JComponent implements javax.swing.table.TableCellRenderer {
-        private ResumenPendientes resumen;
-        private boolean seleccionado;
-        private JTable tabla;
-
-        @Override
-        public Component getTableCellRendererComponent(JTable table, Object valor, boolean isSelected,
-                                                       boolean foco, int fila, int columna) {
-            this.tabla = table;
-            this.resumen = valor instanceof ResumenPendientes r ? r : new ResumenPendientes(0, 0, 0);
-            this.seleccionado = isSelected;
-            setToolTipText(resumen.total() == 0 ? "Este empleado no tiene tareas pendientes"
-                    : resumen.total() + " pendiente(s), " + resumen.vencidas() + " vencida(s), "
-                      + resumen.criticas() + " crítica(s) (urgencia 5)");
-            return this;
-        }
-
-        @Override
-        protected void paintComponent(Graphics graphics) {
-            Graphics2D g = (Graphics2D) graphics.create();
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g.setColor(seleccionado ? tabla.getSelectionBackground() : tabla.getBackground());
-            g.fillRect(0, 0, getWidth(), getHeight());
-            g.setFont(new Font("Segoe UI", Font.BOLD, 11));
-            int x = 6;
-            if (resumen.total() == 0) {
-                x = pintarBadge(g, x, getHeight(), "Sin pendientes",
-                        temaOscuro ? new Color(71, 85, 105) : new Color(226, 232, 240),
-                        temaOscuro ? new Color(203, 213, 225) : COLOR_NEUTRO);
-            } else {
-                x = pintarBadge(g, x, getHeight(), resumen.toString(),
-                        temaOscuro ? new Color(30, 64, 175) : new Color(219, 234, 254),
-                        temaOscuro ? Color.WHITE : new Color(30, 64, 175));
-                if (resumen.vencidas() > 0) {
-                    x = pintarBadge(g, x, getHeight(), resumen.vencidas() + (resumen.vencidas() == 1 ? " vencida" : " vencidas"),
-                            temaOscuro ? new Color(127, 29, 29) : new Color(254, 226, 226),
-                            temaOscuro ? new Color(254, 202, 202) : COLOR_ROJO);
-                }
-                if (resumen.criticas() > 0) {
-                    pintarBadge(g, x, getHeight(), resumen.criticas() + (resumen.criticas() == 1 ? " crítica" : " críticas"),
-                            temaOscuro ? new Color(124, 45, 18) : new Color(255, 237, 213),
-                            temaOscuro ? new Color(254, 215, 170) : new Color(194, 65, 12));
-                }
-            }
-            g.dispose();
-        }
-    }
-
-    /** Columna "Urgencia" del detalle: badge de color según el nivel (1-5). */
-    private class UrgenciaBadgeRenderer extends JComponent implements javax.swing.table.TableCellRenderer {
-        private int urgencia;
-        private boolean seleccionado;
-        private JTable tabla;
-
-        @Override
-        public Component getTableCellRendererComponent(JTable table, Object valor, boolean isSelected,
-                                                       boolean foco, int fila, int columna) {
-            this.tabla = table;
-            this.urgencia = valor instanceof Integer u ? u : 0;
-            this.seleccionado = isSelected;
-            return this;
-        }
-
-        @Override
-        protected void paintComponent(Graphics graphics) {
-            Graphics2D g = (Graphics2D) graphics.create();
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g.setColor(seleccionado ? tabla.getSelectionBackground() : tabla.getBackground());
-            g.fillRect(0, 0, getWidth(), getHeight());
-            g.setFont(new Font("Segoe UI", Font.BOLD, 11));
-            Color fondo, texto;
-            if (urgencia >= 5)      { fondo = new Color(220, 38, 38);  texto = Color.WHITE; }
-            else if (urgencia == 4) { fondo = new Color(234, 88, 12);  texto = Color.WHITE; }
-            else if (urgencia == 3) { fondo = new Color(250, 204, 21); texto = COLOR_TEXTO_DARK; }
-            else                    { fondo = temaOscuro ? new Color(71, 85, 105) : new Color(226, 232, 240);
-                                      texto = temaOscuro ? Color.WHITE : COLOR_TEXTO_DARK; }
-            pintarBadge(g, 6, getHeight(), "Urgencia " + urgencia, fondo, texto);
-            g.dispose();
-        }
-    }
-
     private JButton crearBotonEstilizado(String texto, Color bg, Color fg) {
         JButton btn = new JButton(texto); btn.setFont(new Font("Segoe UI", Font.BOLD, 11));
         btn.setBackground(bg); btn.setForeground(fg); btn.setFocusPainted(false);
         btn.setCursor(new Cursor(Cursor.HAND_CURSOR)); btn.setBorder(BorderFactory.createEmptyBorder(7, 12, 7, 12));
+        // Rol del botón según su color de origen: azules = primario, rojo = acción destructiva, resto = secundario
+        String rol = bg.equals(COLOR_ROJO) ? "peligro"
+                : (bg.equals(COLOR_PRIMARIO) || java.util.Arrays.asList(PALETA_MENU).contains(bg)) ? "primario" : "secundario";
+        btn.putClientProperty(ROL_BOTON, rol);
+        agregarHover(btn);
         return btn;
+    }
+
+    /** Hover: aclara ligeramente el fondo al pasar el cursor y lo restaura al salir. */
+    private void agregarHover(AbstractButton btn) {
+        btn.addMouseListener(new MouseAdapter() {
+            @Override public void mouseEntered(MouseEvent e) {
+                if (!btn.isEnabled()) return;
+                btn.putClientProperty("hover.base", btn.getBackground());
+                btn.setBackground(aclarar(btn.getBackground(), 0.14f));
+            }
+            @Override public void mouseExited(MouseEvent e) {
+                Object base = btn.getClientProperty("hover.base");
+                if (base instanceof Color c) btn.setBackground(c);
+                btn.putClientProperty("hover.base", null);
+            }
+        });
+    }
+
+    private static Color aclarar(Color c, float cantidad) {
+        return new Color(Math.round(c.getRed() + (255 - c.getRed()) * cantidad),
+                Math.round(c.getGreen() + (255 - c.getGreen()) * cantidad),
+                Math.round(c.getBlue() + (255 - c.getBlue()) * cantidad));
     }
 
     private void cambiarTema() {
@@ -2166,103 +2299,209 @@ public class GestionTareasView extends JFrame {
     }
 
     private void aplicarTemaGeneral() {
-        Color fondoApp = temaOscuro ? new Color(15, 23, 42) : COLOR_FONDO_APP;
-        Color panelOscuro = temaOscuro ? new Color(30, 41, 59) : COLOR_TARJETA;
-        Color fondoTarjeta = temaOscuro ? new Color(51, 65, 85) : COLOR_TARJETA;
-        Color textoClaro = temaOscuro ? Color.WHITE : COLOR_TEXTO_DARK;
-        Color textoSuave = temaOscuro ? new Color(203, 213, 225) : COLOR_NEUTRO;
-
-        if (panelSidebar != null) {
-            panelSidebar.setBackground(temaOscuro ? new Color(15, 23, 42) : COLOR_SIDEBAR_BG);
-        }
+        Color barra = temaOscuro ? OSC_BARRA : COLOR_SIDEBAR_BG;
+        if (panelHeader != null) panelHeader.setBackground(barra);
+        if (btnMenuToggle != null) btnMenuToggle.setBackground(barra);
+        if (panelSidebar != null) panelSidebar.setBackground(barra);
         if (panelContenidoCards != null) {
-            panelContenidoCards.setBackground(fondoApp);
+            panelContenidoCards.setBackground(temaOscuro ? OSC_FONDO : COLOR_FONDO_APP);
             panelContenidoCards.setOpaque(temaOscuro);
         }
+        if (getContentPane() != null) getContentPane().setBackground(temaOscuro ? OSC_FONDO : COLOR_FONDO_APP);
 
-        if (botonNavActivo != null) {
-            establecerBotonNavActivo(botonNavActivo);
-        }
+        aplicarTemaRecursivo(panelContenidoCards);
+        aplicarTemaRecursivo(panelSidebar);
 
-        aplicarTemaRecursivo(panelContenidoCards, fondoTarjeta, textoClaro, textoSuave, panelOscuro);
-        aplicarTemaRecursivo(panelSidebar, fondoTarjeta, textoClaro, textoSuave, panelOscuro);
-
-        if (panelSidebar != null) {
-            panelSidebar.setBackground(temaOscuro ? new Color(15, 23, 42) : COLOR_SIDEBAR_BG);
-        }
-
-        if (!temaOscuro && panelContenidoCards != null) {
-            panelContenidoCards.setBackground(COLOR_FONDO_APP);
-            panelContenidoCards.setOpaque(false);
-        }
+        if (panelSidebar != null) panelSidebar.setBackground(barra);
+        if (botonNavActivo != null) establecerBotonNavActivo(botonNavActivo);
 
         if (btnCambiarTema != null) {
             btnCambiarTema.setForeground(Color.WHITE);
-            btnCambiarTema.setBackground(temaOscuro ? new Color(59, 130, 246) : new Color(15, 23, 42));
+            btnCambiarTema.setBackground(temaOscuro ? OSC_PRIMARIO : new Color(15, 23, 42));
         }
-
-        if (btnModoVentana != null) {
-            actualizarColorBotonVentana();
-        }
+        if (btnModoVentana != null) actualizarColorBotonVentana();
         repaint(); // repinta también los componentes con tema propio
     }
 
-    private void aplicarTemaRecursivo(Container contenedor, Color fondoTarjeta, Color textoClaro, Color textoSuave, Color panelOscuro) {
+    /** Aplica el tema actual a un contenedor creado dinámicamente (p. ej. tarjetas del dashboard). */
+    private void aplicarTemaA(Container contenedor) {
+        aplicarTemaRecursivo(contenedor);
+    }
+
+    private void aplicarTemaRecursivo(Container contenedor) {
         if (contenedor == null) return;
-
-        if (contenedor instanceof JComponent componenteRaiz) {
-            guardarColoresOriginales(componenteRaiz);
-            if (componenteRaiz instanceof JPanel panel) {
-                panel.setBackground(temaOscuro ? fondoTarjeta : COLOR_TARJETA);
-                panel.setOpaque(temaOscuro || opacidadOriginal(panel));
-            }
+        if (contenedor instanceof JComponent raiz) {
+            guardarColoresOriginales(raiz);
+            if (raiz instanceof JPanel panel) estilizarPanel(panel);
         }
-
         for (Component componente : contenedor.getComponents()) {
             if (componente instanceof JComponent propio && Boolean.TRUE.equals(propio.getClientProperty(TEMA_PROPIO))) {
-                continue; // tarjetas KPI, alerta y encabezados leen 'temaOscuro' al pintarse
+                continue; // tarjetas KPI, alerta, grafo, árbol... leen 'temaOscuro' al pintarse
             }
-            if (componente instanceof JComponent componenteSwing) {
-                guardarColoresOriginales(componenteSwing);
+            if (componente instanceof JComponent c) {
+                guardarColoresOriginales(c);
+                aplicarBordeTema(c);
             }
 
             if (componente instanceof JPanel panel) {
-                panel.setBackground(temaOscuro ? fondoTarjeta : COLOR_TARJETA);
-                panel.setOpaque(temaOscuro || opacidadOriginal(panel));
-                aplicarTemaRecursivo(panel, fondoTarjeta, textoClaro, textoSuave, panelOscuro);
+                estilizarPanel(panel);
+                aplicarTemaRecursivo(panel);
+                continue;
             } else if (componente instanceof JLabel label) {
-                label.setForeground(temaOscuro ? textoClaro : COLOR_TEXTO_DARK);
+                Color original = colorOriginal(label, "tema.foreground");
+                boolean secundario = COLOR_NEUTRO.equals(original);
+                label.setForeground(temaOscuro ? (secundario ? OSC_TEXTO_SEC : OSC_TEXTO) : original);
             } else if (componente instanceof JTextField field) {
-                field.setBackground(temaOscuro ? new Color(30, 41, 59) : Color.WHITE);
-                field.setForeground(temaOscuro ? Color.WHITE : Color.BLACK);
-                field.setCaretColor(temaOscuro ? Color.WHITE : Color.BLACK);
+                field.setBackground(temaOscuro ? OSC_FONDO : Color.WHITE);
+                field.setForeground(temaOscuro ? OSC_TEXTO : Color.BLACK);
+                field.setCaretColor(temaOscuro ? OSC_TEXTO : Color.BLACK);
             } else if (componente instanceof JTextArea area) {
-                area.setBackground(temaOscuro ? new Color(15, 23, 42) : Color.WHITE);
-                area.setForeground(temaOscuro ? new Color(236, 253, 245) : Color.BLACK);
+                if (Boolean.TRUE.equals(area.getClientProperty("estilo.consola"))) {
+                    // Consola técnica: negro profundo + monoespaciada en verde
+                    area.setBackground(temaOscuro ? OSC_CONSOLA_FONDO : colorOriginal(area, "tema.background"));
+                    area.setForeground(temaOscuro ? OSC_CONSOLA_TEXTO : colorOriginal(area, "tema.foreground"));
+                    area.setCaretColor(area.getForeground());
+                    area.setFont(fuenteMonoespaciada());
+                } else {
+                    area.setBackground(temaOscuro ? OSC_PANEL : Color.WHITE);
+                    area.setForeground(temaOscuro ? OSC_TEXTO : COLOR_TEXTO_DARK);
+                }
             } else if (componente instanceof JComboBox<?> combo) {
                 aplicarEstiloCombo(combo);
             } else if (componente instanceof JTable table) {
-                table.setBackground(temaOscuro ? new Color(51, 65, 85) : Color.WHITE);
-                table.setForeground(temaOscuro ? Color.WHITE : COLOR_TEXTO_DARK);
-                table.setSelectionBackground(temaOscuro ? new Color(59, 130, 246) : new Color(219, 234, 254));
+                table.setBackground(temaOscuro ? OSC_PANEL : Color.WHITE);
+                table.setForeground(temaOscuro ? OSC_TEXTO : COLOR_TEXTO_DARK);
+                table.setSelectionBackground(temaOscuro ? OSC_SELECCION : new Color(219, 234, 254));
                 table.setSelectionForeground(temaOscuro ? Color.WHITE : Color.BLACK);
-                table.setGridColor(temaOscuro ? new Color(71, 85, 105) : COLOR_BORDE);
+                table.setGridColor(temaOscuro ? OSC_BORDE : COLOR_BORDE);
                 JTableHeader header = table.getTableHeader();
-                header.setBackground(temaOscuro ? new Color(30, 41, 59) : COLOR_TEXTO_DARK);
-                header.setForeground(Color.WHITE);
+                header.setBackground(temaOscuro ? OSC_ENCABEZADO_TABLA : COLOR_TEXTO_DARK);
+                header.setForeground(temaOscuro ? OSC_TEXTO : Color.WHITE);
             } else if (componente instanceof JScrollPane scroll) {
-                scroll.getViewport().setBackground(temaOscuro ? new Color(51, 65, 85) : Color.WHITE);
-                scroll.setBackground(temaOscuro ? new Color(51, 65, 85) : Color.WHITE);
-            } else if (componente instanceof JButton button) {
-                if (button != btnCambiarTema && button != botonNavActivo && button != btnModoVentana) {
-                    button.setBackground(temaOscuro ? new Color(71, 85, 105) : colorOriginal(button, "tema.background"));
-                    button.setForeground(temaOscuro ? Color.WHITE : colorOriginal(button, "tema.foreground"));
+                scroll.getViewport().setBackground(temaOscuro ? OSC_PANEL : Color.WHITE);
+                scroll.setBackground(temaOscuro ? OSC_PANEL : Color.WHITE);
+            } else if (componente instanceof JScrollBar barra) {
+                if (temaOscuro) barra.setUI(new BarraDesplazamientoOscura());
+                else if (barra.getUI() instanceof BarraDesplazamientoOscura) barra.updateUI();
+            } else if (componente instanceof JSplitPane division) {
+                if (!(division.getUI() instanceof javax.swing.plaf.basic.BasicSplitPaneUI)
+                        || division.getClientProperty("estilo.plano") == null) {
+                    division.setUI(new javax.swing.plaf.basic.BasicSplitPaneUI());   // divisor plano, sin puntos
+                    division.putClientProperty("estilo.plano", true);
                 }
+                division.setBorder(null);
+                division.setOpaque(true);
+                division.setBackground(temaOscuro ? OSC_FONDO : COLOR_FONDO_APP);
+                ((javax.swing.plaf.basic.BasicSplitPaneUI) division.getUI()).getDivider().setBorder(null);
+            } else if (componente instanceof JButton button) {
+                estilizarBoton(button);
             }
 
-            if (componente instanceof Container contenedorHijo && !(componente instanceof JPanel)) {
-                aplicarTemaRecursivo(contenedorHijo, fondoTarjeta, textoClaro, textoSuave, panelOscuro);
+            if (componente instanceof Container hijo) {
+                aplicarTemaRecursivo(hijo);
             }
+        }
+    }
+
+    // Consolas si está instalada (Windows); si no, la monoespaciada lógica de Java
+    private static Font fuenteMonoespaciada() {
+        boolean hayConsolas = java.util.Arrays.asList(GraphicsEnvironment.getLocalGraphicsEnvironment()
+                .getAvailableFontFamilyNames()).contains("Consolas");
+        return new Font(hayConsolas ? "Consolas" : Font.MONOSPACED, Font.PLAIN, 12);
+    }
+
+    // Paneles con fondo propio (tarjetas) = #1E293B; contenedores transparentes dejan ver el fondo #0F172A
+    private void estilizarPanel(JPanel panel) {
+        boolean opacoOriginal = opacidadOriginal(panel);
+        panel.setOpaque(opacoOriginal);
+        if (opacoOriginal) {
+            Color original = colorOriginal(panel, "tema.background");
+            panel.setBackground(temaOscuro ? OSC_PANEL : (original != null ? original : COLOR_TARJETA));
+        }
+    }
+
+    private void estilizarBoton(JButton button) {
+        if (button == btnCambiarTema || button == botonNavActivo || button == btnModoVentana) return;
+        Container padre = button.getParent();
+        if (button instanceof BasicArrowButton || padre instanceof JComboBox || padre instanceof JScrollBar) return;
+        Object rol = button.getClientProperty(ROL_BOTON);
+        if (rol == null) rol = "secundario";              // botones sin rol explícito (p. ej. "Elegir Fecha")
+        button.putClientProperty("hover.base", null);
+        if (!temaOscuro) {
+            button.setBackground(colorOriginal(button, "tema.background"));
+            button.setForeground(colorOriginal(button, "tema.foreground"));
+            return;
+        }
+        switch (rol.toString()) {
+            case "primario" -> { button.setBackground(OSC_PRIMARIO); button.setForeground(Color.WHITE); }
+            case "peligro" -> { button.setBackground(COLOR_ROJO); button.setForeground(Color.WHITE); }
+            case "nav" -> { button.setBackground(OSC_BARRA); button.setForeground(new Color(203, 213, 225)); }
+            default -> { button.setBackground(OSC_SECUNDARIO); button.setForeground(OSC_TEXTO); }
+        }
+    }
+
+    /**
+     * Bordes según el tema: los títulos de sección cambian de color y las líneas #E2E8F0 pasan a #334155.
+     * Siempre se parte del borde ORIGINAL guardado, así ir y volver entre temas no acumula cambios.
+     */
+    private void aplicarBordeTema(JComponent c) {
+        if (c.getClientProperty("tema.borde.guardado") == null) {
+            c.putClientProperty("tema.borde.guardado", true);
+            c.putClientProperty("tema.borde", c.getBorder());
+        }
+        javax.swing.border.Border original = (javax.swing.border.Border) c.getClientProperty("tema.borde");
+        if (original == null) return;
+        javax.swing.border.Border nuevo = remapearBorde(original);
+        if (temaOscuro && c instanceof JScrollPane && original instanceof javax.swing.plaf.UIResource) {
+            nuevo = BorderFactory.createLineBorder(OSC_BORDE);   // borde sutil en tablas/cajas sin título
+        }
+        if (nuevo != c.getBorder()) c.setBorder(nuevo);
+    }
+
+    private javax.swing.border.Border remapearBorde(javax.swing.border.Border b) {
+        if (b instanceof TitledBorder t) {
+            TitledBorder copia = new TitledBorder(remapearBorde(t.getBorder()), t.getTitle(),
+                    t.getTitleJustification(), t.getTitlePosition(), t.getTitleFont(),
+                    temaOscuro ? OSC_TEXTO : COLOR_TEXTO_DARK);
+            return copia;
+        }
+        if (b instanceof CompoundBorder cb) {
+            javax.swing.border.Border fuera = remapearBorde(cb.getOutsideBorder());
+            javax.swing.border.Border dentro = remapearBorde(cb.getInsideBorder());
+            if (fuera == cb.getOutsideBorder() && dentro == cb.getInsideBorder()) return cb;
+            return BorderFactory.createCompoundBorder(fuera, dentro);
+        }
+        if (b instanceof javax.swing.border.LineBorder lb && COLOR_BORDE.equals(lb.getLineColor())) {
+            return temaOscuro ? new javax.swing.border.LineBorder(OSC_BORDE, lb.getThickness(), lb.getRoundedCorners()) : lb;
+        }
+        return b;
+    }
+
+    /** Barra de desplazamiento del modo oscuro: pista #0F172A y pulgar redondeado #475569, sin flechas. */
+    private static class BarraDesplazamientoOscura extends javax.swing.plaf.basic.BasicScrollBarUI {
+        @Override protected void configureScrollBarColors() {
+            thumbColor = OSC_SECUNDARIO;
+            trackColor = OSC_FONDO;
+        }
+        private JButton botonVacio() {
+            JButton b = new JButton();
+            Dimension cero = new Dimension(0, 0);
+            b.setPreferredSize(cero); b.setMinimumSize(cero); b.setMaximumSize(cero);
+            return b;
+        }
+        @Override protected JButton createDecreaseButton(int orientacion) { return botonVacio(); }
+        @Override protected JButton createIncreaseButton(int orientacion) { return botonVacio(); }
+        @Override protected void paintTrack(Graphics g, JComponent c, Rectangle r) {
+            g.setColor(trackColor);
+            g.fillRect(r.x, r.y, r.width, r.height);
+        }
+        @Override protected void paintThumb(Graphics g, JComponent c, Rectangle r) {
+            if (r.isEmpty()) return;
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(isThumbRollover() ? aclarar(thumbColor, 0.15f) : thumbColor);
+            g2.fillRoundRect(r.x + 2, r.y + 2, r.width - 4, r.height - 4, 8, 8);
+            g2.dispose();
         }
     }
 
@@ -2283,8 +2522,8 @@ public class GestionTareasView extends JFrame {
     }
 
     private void aplicarEstiloCombo(JComboBox<?> combo) {
-        Color fondo = temaOscuro ? new Color(30, 41, 59) : Color.WHITE;
-        Color texto = temaOscuro ? Color.WHITE : COLOR_TEXTO_DARK;
+        Color fondo = temaOscuro ? OSC_FONDO : Color.WHITE;
+        Color texto = temaOscuro ? OSC_TEXTO : COLOR_TEXTO_DARK;
 
         combo.setBackground(fondo);
         combo.setForeground(texto);
@@ -2294,7 +2533,7 @@ public class GestionTareasView extends JFrame {
                     boolean seleccionado, boolean tieneFoco) {
                 JLabel etiqueta = (JLabel) super.getListCellRendererComponent(
                         lista, valor, indice, seleccionado, tieneFoco);
-                etiqueta.setBackground(seleccionado && temaOscuro ? new Color(59, 130, 246) : fondo);
+                etiqueta.setBackground(seleccionado && temaOscuro ? OSC_PRIMARIO : fondo);
                 etiqueta.setForeground(seleccionado && temaOscuro ? Color.WHITE : texto);
                 return etiqueta;
             }
@@ -2305,7 +2544,26 @@ public class GestionTareasView extends JFrame {
                 return new BasicArrowButton(
                     SwingConstants.SOUTH, fondo, fondo, texto, fondo);
             }
+
+            // Pinta el valor seleccionado con los colores del tema (el L&F usaba un gris claro fijo)
+            @Override
+            public void paintCurrentValueBackground(Graphics g, Rectangle r, boolean foco) {
+                g.setColor(fondo);
+                g.fillRect(r.x, r.y, r.width, r.height);
+            }
+
+            @Override
+            @SuppressWarnings("unchecked")
+            public void paintCurrentValue(Graphics g, Rectangle r, boolean foco) {
+                javax.swing.ListCellRenderer<Object> renderer = (javax.swing.ListCellRenderer<Object>) comboBox.getRenderer();
+                Component c = renderer.getListCellRendererComponent(listBox, comboBox.getSelectedItem(), -1, false, false);
+                c.setFont(comboBox.getFont());
+                c.setForeground(comboBox.isEnabled() ? texto : (temaOscuro ? OSC_TEXTO_SEC : COLOR_NEUTRO));
+                c.setBackground(fondo);
+                currentValuePane.paintComponent(g, c, comboBox, r.x, r.y, r.width, r.height, c instanceof JPanel);
+            }
         });
+        combo.setBorder(BorderFactory.createLineBorder(temaOscuro ? OSC_BORDE : COLOR_BORDE));
     }
 
     private CompoundBorder crearBordeSeccion(String titulo, int tamanoFuente) {
@@ -2433,10 +2691,10 @@ public class GestionTareasView extends JFrame {
         this.esVentanaCompleta = maximizado;
         if (btnModoVentana != null) {
             if (maximizado) {
-                btnModoVentana.setText("🗗 Ventana Flotante");
+                btnModoVentana.setText(TEXTO_VENTANA_FLOTANTE);
                 btnModoVentana.setToolTipText("Restaurar a ventana flotante (F11 o Esc)");
             } else {
-                btnModoVentana.setText("🗖 Pantalla Completa");
+                btnModoVentana.setText(TEXTO_PANTALLA_COMPLETA);
                 btnModoVentana.setToolTipText("Poner en ventana completa ajustada a la pantalla (F11)");
             }
         }
@@ -2578,11 +2836,12 @@ public class GestionTareasView extends JFrame {
             panelHorasDepartamentos.add(crearMiniTarjetaDepartamento(departamentos[i], horasGrafica[i], colores[i]));
         }
         panelGraficaDepartamentos.actualizarDatos(departamentos, tareasGrafica, colores);
+        aplicarTemaA(panelHorasDepartamentos);
         panelHorasDepartamentos.revalidate();
         panelHorasDepartamentos.repaint();
     }
 
-    private static class DashboardChartPanel extends JPanel {
+    private class DashboardChartPanel extends JPanel {
         private String[] departamentos = new String[0];
         private int[] tareas = new int[0];
         private Color[] colores = new Color[0];
@@ -2609,7 +2868,7 @@ public class GestionTareasView extends JFrame {
             int maxAxis = step * 4;
 
             g.setFont(new Font("Segoe UI", Font.PLAIN, 10));
-            g.setColor(new Color(148, 163, 184));
+            g.setColor(temaOscuro ? OSC_BORDE : new Color(148, 163, 184));
             for (int i = 0; i <= 4; i++) {
                 int y = top + chartHeight - (i * chartHeight / 4);
                 g.drawLine(left, y, left + chartWidth, y);
@@ -2626,12 +2885,12 @@ public class GestionTareasView extends JFrame {
                 GradientPaint gradiente = new GradientPaint(x, y, colores[i].brighter(), x, y + Math.max(1, barHeight), colores[i]);
                 g.setPaint(gradiente);
                 g.fillRoundRect(x, y, barWidth, Math.max(2, barHeight), 8, 8);
-                g.setColor(COLOR_TEXTO_DARK);
+                g.setColor(temaOscuro ? OSC_TEXTO : COLOR_TEXTO_DARK);
                 String valor = String.valueOf(tareas[i]);
                 g.drawString(valor, x + (barWidth - g.getFontMetrics().stringWidth(valor)) / 2, Math.max(top - 5, y - 6));
                 g.setColor(colores[i]);
                 g.fillOval(x + barWidth / 2 - 4, top + chartHeight + 13, 8, 8);
-                g.setColor(COLOR_TEXTO_DARK);
+                g.setColor(temaOscuro ? OSC_TEXTO_SEC : COLOR_TEXTO_DARK);
                 String nombre = departamentos[i];
                 g.drawString(nombre, x + (barWidth - g.getFontMetrics().stringWidth(nombre)) / 2, top + chartHeight + 34);
             }

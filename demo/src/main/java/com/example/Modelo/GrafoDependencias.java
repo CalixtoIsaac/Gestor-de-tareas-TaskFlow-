@@ -45,6 +45,33 @@ public class GrafoDependencias {
         gradoEntrada.merge(siguiente, 1, Integer::sum);
     }
 
+    /**
+     * REGLA DE NEGOCIO: solo se permiten dependencias entre tareas del MISMO departamento.
+     * Valida los departamentos y, si coinciden, crea la arista previa -> siguiente
+     * (aplicando también las validaciones de autodependencia, duplicado y ciclo).
+     * @throws DependenciaEntreDepartamentosException si los departamentos son distintos.
+     */
+    public void agregarDependencia(Tarea previa, Tarea siguiente) {
+        if (!mismoDepartamento(previa, siguiente)) {
+            throw new DependenciaEntreDepartamentosException(previa, siguiente);
+        }
+        agregarDependencia(previa.getId(), siguiente.getId());
+    }
+
+    public static boolean mismoDepartamento(Tarea a, Tarea b) {
+        return a.getDepartamento() != null && b.getDepartamento() != null
+                && a.getDepartamento().trim().equalsIgnoreCase(b.getDepartamento().trim());
+    }
+
+    /** Se lanza cuando se intenta relacionar tareas de departamentos diferentes. */
+    public static class DependenciaEntreDepartamentosException extends IllegalArgumentException {
+        public DependenciaEntreDepartamentosException(Tarea previa, Tarea siguiente) {
+            super("⚠ Transición no permitida:\nLas dependencias solo se pueden establecer entre tareas del mismo "
+                    + "departamento\n(Ejemplo: Tarea #" + previa.getId() + " [" + previa.getDepartamento() + "] vs Tarea #"
+                    + siguiente.getId() + " [" + siguiente.getDepartamento() + "]).");
+        }
+    }
+
     public boolean existeDependencia(int previa, int siguiente) {
         return listaAdyacencia.containsKey(previa) && listaAdyacencia.get(previa).contains(siguiente);
     }
